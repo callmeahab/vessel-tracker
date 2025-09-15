@@ -1,0 +1,609 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-orbitron: var(--font-orbitron);
+  --font-inter: var(--font-inter);
+  --font-jetbrains-mono: var(--font-jetbrains-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-jetbrains-mono), monospace, Arial, Helvetica, sans-serif;
+}
+
+/* Glassmorphic popup styles */
+.glassmorphic-popup .mapboxgl-popup-content {
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  max-width: none !important;
+}
+
+.glassmorphic-popup .mapboxgl-popup-tip {
+  display: none !important;
+}
+
+.glassmorphic-popup .mapboxgl-popup-close-button {
+  color: white !important;
+  font-size: 20px !important;
+  padding: 0 !important;
+  position: absolute !important;
+  right: -20px !important;
+  margin-bottom: 1rem !important;
+  top: 20px !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7) !important;
+  background: rgba(0, 0, 0, 0.4) !important;
+  border-radius: 50% !important;
+  width: 28px !important;
+  height: 28px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  z-index: 10 !important;
+  padding-bottom: 4px !important;
+  opacity: 0.9 !important;
+}
+
+.glassmorphic-popup .mapboxgl-popup-close-button:hover {
+  background: rgba(255, 255, 255, 0.3) !important;
+  opacity: 1 !important;
+  transform: scale(1.05) !important;
+  transition: all 0.2s ease !important;
+}
+
+/* Main layout styles */
+.main-container {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: linear-gradient(135deg, rgb(96, 165, 250), rgb(168, 85, 247), rgb(236, 72, 153));
+  /* Create a new stacking context so backdrops compute within this container */
+  isolation: isolate;
+}
+
+.background-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  /* Keep this below the map and overlays so they blur the map, not this sheet */
+  z-index: 0;
+  /* Let clicks pass through to underlying content */
+  pointer-events: none;
+}
+
+/* Error state styles */
+.error-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, rgb(248, 113, 113), rgb(168, 85, 247), rgb(236, 72, 153));
+  position: relative;
+}
+
+.error-content {
+  text-align: center;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.4);
+  padding: 2rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  position: relative;
+  z-index: 10;
+}
+
+.error-icon {
+  color: rgb(252, 165, 165);
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.error-text {
+  color: white;
+  margin-bottom: 1.5rem;
+  font-weight: 500;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.retry-button {
+  padding: 0.75rem 1.5rem;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 9999px;
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.retry-button:hover {
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* Header component styles */
+.header {
+  position: relative;
+  z-index: 10;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 1rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.header-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-title {
+  font-family: var(--font-jetbrains-mono);
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: white;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.header-stat {
+  font-family: var(--font-jetbrains-mono);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.4);
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: 0.875rem;
+  color: white;
+}
+
+.header-stat-label {
+  font-weight: 600;
+  margin-right: 0.25rem;
+}
+
+.header-stat-value {
+  font-weight: bold;
+}
+
+.header-stat-value-danger {
+  color: rgb(252, 165, 165);
+  font-weight: bold;
+}
+
+.header-refresh-button {
+  font-family: var(--font-jetbrains-mono);
+  padding: 0.5rem 1rem;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 9999px;
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.header-refresh-button:hover {
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* Map component styles */
+.map-container {
+  flex: 1;
+  position: relative;
+  /* Ensure backdrops are computed against children inside this container */
+  isolation: isolate;
+  /* Sit above the background overlay */
+  z-index: 1;
+}
+
+.map {
+  width: 100%;
+  height: 100%;
+  /* Transparent so backdrops see the map canvas, not a solid color */
+  background-color: transparent;
+  min-height: 400px;
+}
+
+/* Help ensure the map canvas occupies the map area and composites under overlays */
+.map .mapboxgl-map {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 1;
+}
+
+.map .mapboxgl-canvas {
+  position: absolute !important;
+  inset: 0 !important;
+  display: block !important;
+}
+
+.map-loading-overlay {
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+.map-loading-content {
+  text-align: center;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.4);
+  padding: 2rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.map-spinner {
+  width: 3rem;
+  height: 3rem;
+  border: 2px solid transparent;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  margin: 0 auto 1rem;
+}
+
+.map-loading-text {
+  color: white;
+  font-weight: 500;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* Legend component styles */
+.legend-container {
+  position: absolute;
+  bottom: 1rem;
+  left: 1rem;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.4);
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  /* Above the map canvas */
+  z-index: 12;
+}
+
+.legend-title {
+  font-family: var(--font-orbitron);
+  font-weight: 700;
+  color: white;
+  margin-bottom: 0.75rem;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  letter-spacing: 0.03em;
+}
+
+.legend-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.legend-indicator {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  margin-right: 0.75rem;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.legend-indicator.legend-green {
+  background: rgba(34, 197, 94, 0.6);
+  border-color: rgba(34, 197, 94, 0.8);
+}
+
+.legend-indicator.legend-red {
+  background: rgba(239, 68, 68, 0.6);
+  border-color: rgba(239, 68, 68, 0.8);
+}
+
+.legend-indicator.legend-blue {
+  background: rgba(59, 130, 246, 0.6);
+  border-color: rgba(59, 130, 246, 0.8);
+}
+
+.legend-icon {
+  font-size: 0.5rem;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.legend-label {
+  font-family: var(--font-jetbrains-mono);
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+  font-size: 0.8rem;
+}
+
+/* VesselList component styles */
+.vessel-list-wrapper {
+  position: absolute;
+  top: 5.5rem;
+  right: 1rem;
+  z-index: 15;
+}
+
+.vessel-list-container {
+  position: relative;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  width: 20rem;
+  max-height: 24rem;
+  overflow: hidden;
+}
+
+.vessel-list-header {
+  padding: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.vessel-list-title {
+  font-family: var(--font-orbitron);
+  font-weight: 700;
+  color: white;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  letter-spacing: 0.03em;
+}
+
+.vessel-list-content {
+  overflow-y: auto;
+  max-height: 20rem;
+}
+
+.vessel-list-empty {
+  padding: 1rem;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.vessel-list-empty-icon {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+}
+
+.vessel-list-empty-text {
+  font-weight: 500;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.vessel-list-empty-subtext {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.6);
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.vessel-item {
+  padding: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.vessel-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.vessel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.vessel-name {
+  font-family: var(--font-orbitron);
+  font-weight: 600;
+  color: white;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+  letter-spacing: 0.02em;
+}
+
+.vessel-badge {
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.vessel-badge-danger {
+  background: rgba(220, 38, 38, 0.3);
+  color: rgb(254, 202, 202);
+  border-color: rgba(220, 38, 38, 0.5);
+}
+
+.vessel-badge-info {
+  background: rgba(37, 99, 235, 0.3);
+  color: rgb(191, 219, 254);
+  border-color: rgba(37, 99, 235, 0.5);
+}
+
+.vessel-info {
+  font-family: var(--font-jetbrains-mono);
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+  margin-bottom: 0.25rem;
+}
+
+.vessel-details {
+  font-family: var(--font-jetbrains-mono);
+  font-size: 0.75rem;
+  color: rgb(156, 163, 175);
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.vessel-detail {
+  font-family: var(--font-jetbrains-mono);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.vessel-coords {
+  font-family: var(--font-jetbrains-mono);
+  font-size: 0.75rem;
+  color: rgb(156, 163, 175);
+  display: flex;
+  justify-content: space-between;
+}
+
+.vessel-coord {
+  font-family: var(--font-jetbrains-mono);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.vessel-distance {
+  font-family: var(--font-jetbrains-mono);
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+}
+
+/* Mapbox Navigation Controls Styling */
+.mapboxgl-ctrl-group {
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  background: rgba(255, 255, 255, 0.4) !important;
+  border-radius: 1rem !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
+  overflow: hidden !important;
+}
+
+.mapboxgl-ctrl-group button {
+  background: transparent !important;
+  border: none !important;
+  color: white !important;
+  font-family: var(--font-jetbrains-mono) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5) !important;
+  transition: all 0.2s ease !important;
+  padding: 8px !important;
+  margin: 0 !important;
+  width: 40px !important;
+  height: 40px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.mapboxgl-ctrl-group button:hover {
+  background: rgba(255, 255, 255, 0.4) !important;
+  transform: scale(1.05) !important;
+}
+
+.mapboxgl-ctrl-group button:active {
+  background: rgba(255, 255, 255, 0.4) !important;
+  transform: scale(0.98) !important;
+}
+
+.mapboxgl-ctrl-group button:not(:last-child) {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Zoom control specific styling */
+.mapboxgl-ctrl-zoom-in,
+.mapboxgl-ctrl-zoom-out {
+  font-size: 18px !important;
+  line-height: 1 !important;
+  color: white !important;
+  filter: brightness(0) invert(1) !important;
+}
+
+/* Compass control styling */
+.mapboxgl-ctrl-compass {
+  filter: brightness(0) invert(1) !important;
+  opacity: 0.9 !important;
+}
+
+.mapboxgl-ctrl-compass:hover {
+  opacity: 1 !important;
+}
