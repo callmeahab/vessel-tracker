@@ -10,10 +10,12 @@ import (
 )
 
 type GeoService struct {
-	parkBoundaries *geojson.FeatureCollection
+	parkBoundaries     *geojson.FeatureCollection
+	bufferedBoundaries *geojson.FeatureCollection
 }
 
-func NewGeoService(geojsonPath string) (*GeoService, error) {
+func NewGeoService(geojsonPath string, bufferedPath string) (*GeoService, error) {
+	// Load park boundaries
 	file, err := os.Open(geojsonPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open geojson file: %w", err)
@@ -30,8 +32,31 @@ func NewGeoService(geojsonPath string) (*GeoService, error) {
 		return nil, fmt.Errorf("failed to parse geojson: %w", err)
 	}
 
+	// Load buffered boundaries
+	var bufferedFC *geojson.FeatureCollection
+	if bufferedPath != "" {
+		bufferedFile, err := os.Open(bufferedPath)
+		if err != nil {
+			fmt.Printf("Warning: Failed to open buffered boundaries file %s: %v\n", bufferedPath, err)
+		} else {
+			defer bufferedFile.Close()
+			bufferedData, err := io.ReadAll(bufferedFile)
+			if err != nil {
+				fmt.Printf("Warning: Failed to read buffered boundaries file: %v\n", err)
+			} else {
+				bufferedFC, err = geojson.UnmarshalFeatureCollection(bufferedData)
+				if err != nil {
+					fmt.Printf("Warning: Failed to parse buffered boundaries GeoJSON: %v\n", err)
+				} else {
+					fmt.Printf("Successfully loaded buffered boundaries with %d features\n", len(bufferedFC.Features))
+				}
+			}
+		}
+	}
+
 	return &GeoService{
-		parkBoundaries: fc,
+		parkBoundaries:     fc,
+		bufferedBoundaries: bufferedFC,
 	}, nil
 }
 
@@ -93,6 +118,29 @@ func (s *GeoService) isPointInPolygon(point []float64, polygon [][]float64) bool
 
 func (s *GeoService) GetParkBoundaries() ([]byte, error) {
 	return json.Marshal(s.parkBoundaries)
+}
+
+func (s *GeoService) GetBufferedBoundaries() ([]byte, error) {
+	if s.bufferedBoundaries == nil {
+		return nil, fmt.Errorf("buffered boundaries not loaded")
+	}
+	return json.Marshal(s.bufferedBoundaries)
+}
+
+func (s *GeoService) IsPointInBufferZone(lat, lon float64) bool {
+	if s.bufferedBoundaries == nil {
+		return false
+	}
+
+	point := []float64{lon, lat}
+
+	for _, feature := range s.bufferedBoundaries.Features {
+		if s.isPointInFeature(point, feature) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (s *GeoService) GetParkCenter() (float64, float64) {

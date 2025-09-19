@@ -3,18 +3,25 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import mapboxgl from "mapbox-gl";
-import { VesselData } from "@/types/vessel";
+import { VesselData, VesselHistoryResponse } from "@/types/vessel";
 import Header from "@/components/Header/Header";
-import VesselList from "@/components/VesselList/VesselList";
 import Legend from "@/components/Legend/Legend";
 import MapComponent from "@/components/Map/Map";
+import BufferViolationsPanel from "@/components/BufferViolationsPanel/BufferViolationsPanel";
 
 export default function Home() {
   const [vessels, setVessels] = useState<VesselData[]>([]);
   const [parkBoundaries, setParkBoundaries] =
     useState<GeoJSON.FeatureCollection | null>(null);
+  const [bufferedBoundaries, setBufferedBoundaries] =
+    useState<GeoJSON.FeatureCollection | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [violationsPanelOpen, setViolationsPanelOpen] = useState(false);
+  const [trackingVessel, setTrackingVessel] = useState<{
+    uuid: string;
+    name: string;
+  } | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -40,6 +47,22 @@ export default function Home() {
           console.error(
             "Failed to fetch boundaries:",
             boundariesResponse.status
+          );
+        }
+
+        // Fetch buffered boundaries
+        console.log("Fetching buffered boundaries...");
+        const bufferedResponse = await fetch(
+          `${API_BASE_URL}/api/buffered-boundaries`
+        );
+        if (bufferedResponse.ok) {
+          const buffered = await bufferedResponse.json();
+          console.log("Buffered boundaries loaded successfully");
+          setBufferedBoundaries(buffered);
+        } else {
+          console.error(
+            "Failed to fetch buffered boundaries:",
+            bufferedResponse.status
           );
         }
 
@@ -88,6 +111,200 @@ export default function Home() {
     }
   }, []);
 
+  const toggleViolationsPanel = useCallback(() => {
+    setViolationsPanelOpen((prev) => !prev);
+  }, []);
+
+  const closeViolationsPanel = useCallback(() => {
+    setViolationsPanelOpen(false);
+  }, []);
+
+  const handleTrackHistory = useCallback(
+    async (vesselUuid: string, vesselName: string) => {
+      try {
+        setTrackingVessel({ uuid: vesselUuid, name: vesselName });
+
+        // Fetch vessel history from the last 7 days
+        const response = await fetch(
+          `${API_BASE_URL}/api/vessels/${vesselUuid}/history?limit=100`
+        );
+
+        if (response.ok) {
+          const historyData: VesselHistoryResponse = await response.json();
+
+          if (
+            historyData.history &&
+            historyData.history.length > 0 &&
+            mapRef.current
+          ) {
+            // Create path coordinates from history
+            const coordinates = historyData.history.map((entry) => [
+              entry.longitude,
+              entry.latitude,
+            ]);
+
+            // Remove existing track if any
+            if (mapRef.current.getSource("vessel-track")) {
+              mapRef.current.removeLayer("vessel-track-line");
+              mapRef.current.removeLayer("vessel-track-points");
+              mapRef.current.removeSource("vessel-track");
+            }
+
+            // Add vessel track source and layers
+            mapRef.current.addSource("vessel-track", {
+              type: "geojson",
+              data: {
+                type: "Feature",
+                properties: {
+                  vessel_name: vesselName,
+                  vessel_uuid: vesselUuid,
+                },
+                geometry: {
+                  type: "LineString",
+                  coordinates: coordinates,
+                },
+              },
+            });
+
+            // Add track line
+            mapRef.current.addLayer({
+              id: "vessel-track-line",
+              type: "line",
+              source: "vessel-track",
+              layout: {
+                "line-join": "round",
+                "line-cap": "round",
+              },
+              paint: {
+                "line-color": "#3b82f6",
+                "line-width": 3,
+                "line-opacity": 0.8,
+              },
+            });
+
+            // Add track points
+            mapRef.current.addSource("vessel-track-points", {
+              type: "geojson",
+              data: {
+                type: "FeatureCollection",
+                features: historyData.history.map((entry, index) => ({
+                  type: "Feature",
+                  properties: {
+                    timestamp: entry.timestamp,
+                    speed: entry.speed,
+                    is_start: index === historyData.history.length - 1,
+                    is_end: index === 0,
+                  },
+                  geometry: {
+                    type: "Point",
+                    coordinates: [entry.longitude, entry.latitude],
+                  },
+                })),
+              },
+            });
+
+            mapRef.current.addLayer({
+              id: "vessel-track-points",
+              type: "circle",
+              source: "vessel-track-points",
+              paint: {
+                "circle-radius": [
+                  "case",
+                  ["get", "is_start"],
+                  8,
+                  ["get", "is_end"],
+                  6,
+                  4,
+                ],
+                "circle-color": [
+                  "case",
+                  ["get", "is_start"],
+                  "#10b981", // Green for start (oldest)
+                  ["get", "is_end"],
+                  "#ef4444", // Red for end (newest)
+                  "#3b82f6", // Blue for intermediate points
+                ],
+                "circle-opacity": 0.8,
+                "circle-stroke-width": 2,
+                "circle-stroke-color": "#ffffff",
+              },
+            });
+
+            // Fit map to track bounds
+            const bounds = new mapboxgl.LngLatBounds();
+            coordinates.forEach((coord) =>
+              bounds.extend(coord as [number, number])
+            );
+            mapRef.current.fitBounds(bounds, { padding: 50 });
+
+            // Add popup for track points
+            mapRef.current.on("click", "vessel-track-points", (e) => {
+              const features = e.features;
+              if (features && features.length > 0) {
+                const feature = features[0];
+                const props = feature.properties;
+
+                new mapboxgl.Popup()
+                  .setLngLat(e.lngLat)
+                  .setHTML(
+                    `
+                  <div style="padding: 10px; background: rgba(0, 0, 0, 0.8); border-radius: 8px; color: white;">
+                    <strong>${vesselName}</strong><br/>
+                    <small>Time: ${new Date(
+                      props?.timestamp
+                    ).toLocaleString()}</small><br/>
+                    <small>Speed: ${props?.speed} kts</small><br/>
+                    <small>${
+                      props?.is_start
+                        ? "🟢 Track Start"
+                        : props?.is_end
+                        ? "🔴 Latest Position"
+                        : "🔵 Track Point"
+                    }</small>
+                  </div>
+                `
+                  )
+                  .addTo(mapRef.current!);
+              }
+            });
+
+            // Keep the tracking vessel state for the header
+            // Don't clear it here since we want to show the clear button
+            alert(
+              `Tracking history loaded for ${vesselName} (${historyData.count} positions)`
+            );
+          } else {
+            alert(`No tracking history found for ${vesselName}`);
+            setTrackingVessel(null);
+          }
+        } else {
+          alert(`Failed to fetch tracking history for ${vesselName}`);
+          setTrackingVessel(null);
+        }
+      } catch (error) {
+        console.error("Error fetching vessel history:", error);
+        alert(`Error loading tracking history for ${vesselName}`);
+        setTrackingVessel(null);
+      }
+    },
+    [API_BASE_URL]
+  );
+
+  const clearVesselTrack = useCallback(() => {
+    if (mapRef.current && mapRef.current.getSource("vessel-track")) {
+      mapRef.current.removeLayer("vessel-track-line");
+      mapRef.current.removeLayer("vessel-track-points");
+      mapRef.current.removeSource("vessel-track");
+      mapRef.current.removeSource("vessel-track-points");
+    }
+    setTrackingVessel(null);
+  }, []);
+
+  // Calculate vessels in buffer zone (violations) - exclude whitelisted vessels
+  const vesselsInBuffer = Array.isArray(vessels)
+    ? vessels.filter((v) => v.is_in_buffer_zone && !v.is_whitelisted).length
+    : 0;
+
   if (error) {
     return (
       <div className="error-container">
@@ -114,19 +331,30 @@ export default function Home() {
             ? vessels.filter((v) => v.is_in_park).length
             : 0
         }
+        vesselsInBuffer={vesselsInBuffer}
         onRefresh={refreshData}
+        onToggleViolations={toggleViolationsPanel}
+        onClearTrack={clearVesselTrack}
+        trackingVessel={trackingVessel}
       />
 
       <MapComponent
         vessels={vessels}
         parkBoundaries={parkBoundaries}
+        bufferedBoundaries={bufferedBoundaries}
         loading={loading}
         onMapReady={handleMapReady}
       />
 
       <Legend />
 
-      <VesselList vessels={vessels} onVesselClick={handleVesselClick} />
+      <BufferViolationsPanel
+        vessels={vessels}
+        isOpen={violationsPanelOpen}
+        onClose={closeViolationsPanel}
+        onVesselClick={handleVesselClick}
+        onTrackHistory={handleTrackHistory}
+      />
     </div>
   );
 }

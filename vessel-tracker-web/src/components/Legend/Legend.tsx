@@ -9,13 +9,23 @@ const legendItems = [
     icon: "🌳",
   },
   {
+    color: "orange",
+    label: "Buffer Zone (150m)",
+    icon: "⚡",
+  },
+  {
     color: "red",
     label: "Vessels in Park",
     icon: "⚠️",
   },
   {
+    color: "orange",
+    label: "Vessels in Buffer",
+    icon: "⚡",
+  },
+  {
     color: "blue",
-    label: "Vessels Outside Park",
+    label: "Vessels Safe",
     icon: "✅",
   },
 ];

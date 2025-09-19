@@ -18,6 +18,7 @@ import {
 interface MapProps {
   vessels: VesselData[];
   parkBoundaries: GeoJSON.FeatureCollection | null;
+  bufferedBoundaries?: GeoJSON.FeatureCollection | null;
   loading: boolean;
   onMapReady?: (map: mapboxgl.Map) => void;
 }
@@ -25,6 +26,7 @@ interface MapProps {
 export default function MapComponent({
   vessels,
   parkBoundaries,
+  bufferedBoundaries,
   loading,
   onMapReady,
 }: MapProps) {
@@ -46,6 +48,7 @@ export default function MapComponent({
             properties: {
               name: vessel.vessel.name,
               isInPark: vessel.is_in_park,
+              isInBufferZone: vessel.is_in_buffer_zone || false,
               mmsi: vessel.vessel.mmsi,
               type: vessel.vessel.type,
               typeSpecific: vessel.vessel.type_specific,
@@ -135,6 +138,29 @@ export default function MapComponent({
           {/* Navigation Controls */}
           <NavigationControl position="bottom-right" />
 
+          {/* Buffered Boundaries */}
+          {bufferedBoundaries && (
+            <Source id="buffered-boundaries" type="geojson" data={bufferedBoundaries}>
+              <Layer
+                id="buffered-fill"
+                type="fill"
+                paint={{
+                  "fill-color": "#ffa500",
+                  "fill-opacity": 0.15,
+                }}
+              />
+              <Layer
+                id="buffered-outline"
+                type="line"
+                paint={{
+                  "line-color": "#ffa500",
+                  "line-width": 2,
+                  "line-dasharray": [2, 2],
+                }}
+              />
+            </Source>
+          )}
+
           {/* Park Boundaries */}
           {parkBoundaries && (
             <Source id="park-boundaries" type="geojson" data={parkBoundaries}>
@@ -169,6 +195,8 @@ export default function MapComponent({
                     "case",
                     ["get", "isInPark"],
                     "#ff0000",
+                    ["get", "isInBufferZone"],
+                    "#ffa500",
                     "#0000ff",
                   ],
                   "circle-stroke-color": "#ffffff",
@@ -190,6 +218,8 @@ export default function MapComponent({
                     "case",
                     ["get", "isInPark"],
                     "#ff0000",
+                    ["get", "isInBufferZone"],
+                    "#ffa500",
                     "#0000ff",
                   ],
                   "text-halo-color": "#ffffff",
