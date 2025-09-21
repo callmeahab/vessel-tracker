@@ -75,6 +75,7 @@ func main() {
 
 	vesselHandler := handlers.NewVesselHandler(vesselService, geoService, vesselRepo, whitelistService)
 	whitelistHandler := handlers.NewWhitelistHandler(whitelistService)
+	violationHandler := handlers.NewViolationHandler(vesselService, geoService, vesselRepo)
 
 	api := r.Group("/api")
 	{
@@ -85,6 +86,7 @@ func main() {
 		api.GET("/vessels/:uuid/history", vesselHandler.GetVesselHistory)
 		api.GET("/park-boundaries", vesselHandler.GetParkBoundaries)
 		api.GET("/buffered-boundaries", vesselHandler.GetBufferedBoundaries)
+		api.GET("/posidonia", handlers.GetPosidoniaData)
 
 		// Whitelist endpoints
 		api.GET("/whitelist", whitelistHandler.GetWhitelistEntries)
@@ -93,6 +95,11 @@ func main() {
 		api.DELETE("/whitelist/:uuid", whitelistHandler.RemoveFromWhitelist)
 		api.POST("/whitelist/initialize", whitelistHandler.InitializeHardcodedWhitelist)
 		api.POST("/whitelist/refresh", whitelistHandler.RefreshWhitelist)
+
+		// Violation generation endpoints (for testing/demo purposes)
+		api.POST("/violations/generate-buffer", violationHandler.GenerateBufferViolations)
+		api.POST("/violations/generate-posidonia", violationHandler.GeneratePosidoniaViolations)
+		api.POST("/violations/clear-test", violationHandler.ClearTestViolations)
 
 		api.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{"status": "healthy"})

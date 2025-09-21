@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
 	"vessel-tracker/services"
 
 	"github.com/gin-gonic/gin"

@@ -1,0 +1,11 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Typecheck Next.js app",
+			"type": "shell",
+			"command": "npm run -s typecheck",
+			"group": "build"
+		}
+	]
+}

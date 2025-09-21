@@ -21,6 +21,9 @@ export interface VesselData {
   is_in_park: boolean;
   is_in_buffer_zone?: boolean;
   is_whitelisted?: boolean;
+  is_anchored_on_posidonia?: boolean;
+  distance_to_nearest_posidonia?: number;
+  is_near_posidonia?: boolean;
   whitelist_info?: {
     reason: string;
     added_by: string;

@@ -1,19 +1,23 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import mapboxgl from "mapbox-gl";
+import * as turf from "@turf/turf";
 import { VesselData, VesselHistoryResponse } from "@/types/vessel";
 import Header from "@/components/Header/Header";
 import Legend from "@/components/Legend/Legend";
-import MapComponent from "@/components/Map/Map";
-import BufferViolationsPanel from "@/components/BufferViolationsPanel/BufferViolationsPanel";
+import MapComponent, { useMapLayers } from "@/components/Map/Map";
+import ViolationsPanel from "@/components/ViolationsPanel/ViolationsPanel";
+import ViolationsEngine from "@/lib/violations-engine";
 
 export default function Home() {
   const [vessels, setVessels] = useState<VesselData[]>([]);
   const [parkBoundaries, setParkBoundaries] =
     useState<GeoJSON.FeatureCollection | null>(null);
   const [bufferedBoundaries, setBufferedBoundaries] =
+    useState<GeoJSON.FeatureCollection | null>(null);
+  const [posidoniaData, setPosidoniaData] =
     useState<GeoJSON.FeatureCollection | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +27,19 @@ export default function Home() {
     name: string;
   } | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
+
+  // Layer visibility state
+  const [layerVisibility, setLayerVisibility] = useState<
+    Record<string, boolean>
+  >({
+    vessels: true,
+    "posidonia-healthy": true,
+    "posidonia-degraded": true,
+    "posidonia-dead": true,
+    "posidonia-standard": true,
+    "park-boundaries": true,
+    "buffer-zone": true,
+  });
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -92,6 +109,100 @@ export default function Home() {
     fetchData();
   }, [API_BASE_URL]);
 
+  // Load posidonia data
+  useEffect(() => {
+    const fetchPosidoniaData = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/posidonia`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.type === "FeatureCollection" && data.features) {
+            setPosidoniaData(data);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load posidonia data:", err);
+      }
+    };
+
+    fetchPosidoniaData();
+  }, [API_BASE_URL]);
+
+  // Initialize violations engine
+  const violationsEngine = useMemo(() => new ViolationsEngine(), []);
+
+  // Enhanced vessel data with violations detection
+  const vesselViolations = useMemo(() => {
+    if (!Array.isArray(vessels)) return [];
+
+    return vessels.map((vessel) => {
+      return violationsEngine.detectViolations(
+        vessel,
+        parkBoundaries,
+        bufferedBoundaries,
+        posidoniaData,
+        null // shoreline data - can be added later
+      );
+    });
+  }, [
+    vessels,
+    violationsEngine,
+    parkBoundaries,
+    bufferedBoundaries,
+    posidoniaData,
+  ]);
+
+  // Enhanced vessels with backward compatibility
+  const enhancedVessels = useMemo(() => {
+    return vesselViolations.map((vv) => {
+      const hasBufferViolation = vv.violations.some(
+        (v) => v.type === "in_buffer_zone"
+      );
+      const hasPosidoniaViolation = vv.violations.some(
+        (v) => v.type === "anchored_on_posidonia"
+      );
+      const vesselPoint = turf.point([vv.vessel.longitude, vv.vessel.latitude]);
+      let isInPark = false;
+
+      // Check if in park for backward compatibility
+      if (parkBoundaries && parkBoundaries.features) {
+        for (const feature of parkBoundaries.features) {
+          if (
+            feature.geometry &&
+            (feature.geometry.type === "Polygon" ||
+              feature.geometry.type === "MultiPolygon")
+          ) {
+            try {
+              if (
+                turf.booleanPointInPolygon(
+                  vesselPoint,
+                  feature as GeoJSON.Feature<
+                    GeoJSON.Polygon | GeoJSON.MultiPolygon
+                  >
+                )
+              ) {
+                isInPark = true;
+                break;
+              }
+            } catch (error) {
+              console.debug("Park check failed:", error);
+            }
+          }
+        }
+      }
+
+      return {
+        ...vv.vessel,
+        is_in_buffer_zone: hasBufferViolation,
+        is_in_park: isInPark,
+        is_anchored_on_posidonia: hasPosidoniaViolation,
+        violations: vv.violations,
+        violationSeverity: vv.maxSeverity,
+        violationColor: violationsEngine.getVesselColor(vv),
+      };
+    });
+  }, [vesselViolations, parkBoundaries, violationsEngine]);
+
   const refreshData = () => {
     window.location.reload();
   };
@@ -109,10 +220,6 @@ export default function Home() {
         duration: 2000,
       });
     }
-  }, []);
-
-  const toggleViolationsPanel = useCallback(() => {
-    setViolationsPanelOpen((prev) => !prev);
   }, []);
 
   const closeViolationsPanel = useCallback(() => {
@@ -300,19 +407,51 @@ export default function Home() {
     setTrackingVessel(null);
   }, []);
 
-  // Calculate vessels in buffer zone (violations) - exclude whitelisted vessels
-  const vesselsInBuffer = Array.isArray(vessels)
-    ? vessels.filter((v) => v.is_in_buffer_zone && !v.is_whitelisted).length
-    : 0;
+  const generateBufferViolations = useCallback(() => {
+    // Open the violations panel to show real buffer zone violations
+    setViolationsPanelOpen(true);
+  }, []);
+
+  // Handle layer visibility toggle
+  const handleLayerToggle = useCallback((layerId: string, visible: boolean) => {
+    setLayerVisibility((prev) => ({
+      ...prev,
+      [layerId]: visible,
+    }));
+  }, []);
+
+  // Get map layers data - must be called before any conditional returns
+  const mapLayers = useMapLayers(layerVisibility);
+
+  // Memoize vessel calculations to prevent expensive recalculations
+  const vesselStats = useMemo(() => {
+    if (!Array.isArray(enhancedVessels)) {
+      return { vesselsInBuffer: 0, vesselsInPark: 0 };
+    }
+
+    return {
+      vesselsInBuffer: enhancedVessels.filter(
+        (v) => v.is_in_buffer_zone && !v.is_whitelisted
+      ).length,
+      vesselsInPark: enhancedVessels.filter((v) => v.is_in_park).length,
+    };
+  }, [enhancedVessels]);
 
   if (error) {
     return (
-      <div className="error-container">
-        <div className="background-overlay"></div>
-        <div className="error-content">
-          <div className="error-icon">⚠️</div>
-          <p className="error-text">{error}</p>
-          <button onClick={refreshData} className="retry-button">
+      <div
+        className="flex items-center justify-center min-h-screen"
+        style={{
+          background: "linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)",
+        }}
+      >
+        <div className="text-center glass-heavy p-8 rounded-xl shadow-2xl max-w-md mx-4">
+          <div className="text-white text-6xl mb-4 drop-shadow-lg">⚠️</div>
+          <p className="text-white mb-6 font-medium text-shadow">{error}</p>
+          <button
+            onClick={refreshData}
+            className="px-6 py-2 glass-ocean rounded-xl text-white font-medium transition-all duration-200 hover:bg-white/30 text-shadow-sm"
+          >
             Retry
           </button>
         </div>
@@ -321,35 +460,42 @@ export default function Home() {
   }
 
   return (
-    <div className="main-container">
-      <div className="background-overlay"></div>
-
+    <div
+      className="h-screen flex flex-col relative isolate"
+      style={{
+        background: "linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)",
+      }}
+    >
       <Header
-        vesselCount={Array.isArray(vessels) ? vessels.length : 0}
-        vesselsInPark={
-          Array.isArray(vessels)
-            ? vessels.filter((v) => v.is_in_park).length
-            : 0
+        vesselCount={
+          Array.isArray(enhancedVessels) ? enhancedVessels.length : 0
         }
-        vesselsInBuffer={vesselsInBuffer}
+        vesselsInPark={vesselStats.vesselsInPark}
+        vesselsInBuffer={vesselStats.vesselsInBuffer}
         onRefresh={refreshData}
-        onToggleViolations={toggleViolationsPanel}
         onClearTrack={clearVesselTrack}
         trackingVessel={trackingVessel}
+        onGenerateBufferViolations={generateBufferViolations}
       />
 
       <MapComponent
-        vessels={vessels}
+        vessels={enhancedVessels}
         parkBoundaries={parkBoundaries}
         bufferedBoundaries={bufferedBoundaries}
         loading={loading}
         onMapReady={handleMapReady}
+        layerVisibility={layerVisibility}
+        onLayerToggle={handleLayerToggle}
       />
 
-      <Legend />
+      <Legend
+        layers={mapLayers}
+        onLayerToggle={handleLayerToggle}
+        showToggleControls={true}
+      />
 
-      <BufferViolationsPanel
-        vessels={vessels}
+      <ViolationsPanel
+        vessels={enhancedVessels}
         isOpen={violationsPanelOpen}
         onClose={closeViolationsPanel}
         onVesselClick={handleVesselClick}
