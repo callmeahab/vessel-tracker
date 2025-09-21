@@ -140,6 +140,7 @@ export default function MapComponent({
   const mapRef = useRef<MapRef>(null);
   const [posidoniaData, setPosidoniaData] =
     useState<GeoJSON.FeatureCollection | null>(null);
+  const [mapInitialized, setMapInitialized] = useState(false);
 
   // Layer visibility state (use external or internal)
   const [internalLayerVisibility] = useState<Record<string, boolean>>({
@@ -617,9 +618,23 @@ export default function MapComponent({
 
   return (
     <div className="map-container">
+      {/* Map initialization loading state */}
+      {!mapInitialized && (
+        <div className="absolute inset-0 flex items-center justify-center z-30">
+          <div className="glass-heavy px-6 py-4 rounded-xl flex flex-col items-center gap-3 shadow-2xl">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              className="w-8 h-8 border-3 border-white/30 border-t-white rounded-full"
+            />
+            <p className="text-white font-medium text-shadow">Initializing map...</p>
+          </div>
+        </div>
+      )}
+
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
+        animate={{ opacity: mapInitialized ? 1 : 0.3, scale: 1 }}
         transition={{ duration: 0.5 }}
         className="map"
       >
@@ -633,7 +648,10 @@ export default function MapComponent({
           }}
           style={{ width: "100%", height: "100%" }}
           mapStyle="mapbox://styles/mapbox/satellite-streets-v12"
-          onLoad={onMapLoad}
+          onLoad={(event) => {
+            setMapInitialized(true);
+            onMapLoad(event);
+          }}
           onClick={onMapClick}
           onMouseMove={onMouseMove}
         >
@@ -943,27 +961,22 @@ export default function MapComponent({
         </Map>
       </motion.div>
 
-      {/* Loading Overlay */}
+      {/* Non-blocking Loading Indicator */}
       {loading && (
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="map-loading-overlay"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          className="absolute top-4 right-4 z-20 pointer-events-none"
         >
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: "spring", stiffness: 200 }}
-            className="map-loading-content"
-          >
+          <div className="glass-heavy px-4 py-3 rounded-lg flex items-center gap-3">
             <motion.div
               animate={{ rotate: 360 }}
               transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-              className="map-spinner"
+              className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
             />
-            <p className="map-loading-text">Loading vessel data...</p>
-          </motion.div>
+            <span className="text-white text-sm font-medium text-shadow-sm">Loading vessels...</span>
+          </div>
         </motion.div>
       )}
     </div>

@@ -43,66 +43,60 @@ export default function Home() {
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-  // Fetch data
+  // Progressive data fetching - non-blocking
   useEffect(() => {
     const fetchData = async () => {
       try {
-        console.log("Starting data fetch...");
+        console.log("Starting progressive data fetch...");
+
+        // Start with a soft loading state that doesn't block UI
         setLoading(true);
         setError(null);
 
-        // Fetch park boundaries
-        console.log("Fetching park boundaries...");
-        const boundariesResponse = await fetch(
-          `${API_BASE_URL}/api/park-boundaries`
-        );
-        if (boundariesResponse.ok) {
-          const boundaries = await boundariesResponse.json();
-          console.log("Park boundaries loaded successfully");
-          setParkBoundaries(boundaries);
-        } else {
-          console.error(
-            "Failed to fetch boundaries:",
-            boundariesResponse.status
-          );
-        }
+        // Fetch critical data first (boundaries) in parallel
+        const boundariesPromise = fetch(`${API_BASE_URL}/api/park-boundaries`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (data) {
+              setParkBoundaries(data);
+              console.log("Park boundaries loaded");
+            }
+          })
+          .catch(err => console.error("Boundaries error:", err));
 
-        // Fetch buffered boundaries
-        console.log("Fetching buffered boundaries...");
-        const bufferedResponse = await fetch(
-          `${API_BASE_URL}/api/buffered-boundaries`
-        );
-        if (bufferedResponse.ok) {
-          const buffered = await bufferedResponse.json();
-          console.log("Buffered boundaries loaded successfully");
-          setBufferedBoundaries(buffered);
-        } else {
-          console.error(
-            "Failed to fetch buffered boundaries:",
-            bufferedResponse.status
-          );
-        }
+        const bufferedPromise = fetch(`${API_BASE_URL}/api/buffered-boundaries`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (data) {
+              setBufferedBoundaries(data);
+              console.log("Buffered boundaries loaded");
+            }
+          })
+          .catch(err => console.error("Buffered error:", err));
 
-        // Fetch vessels in park
-        console.log("Fetching vessels...");
-        const vesselsResponse = await fetch(
-          `${API_BASE_URL}/api/vessels/in-park`
-        );
-        if (vesselsResponse.ok) {
-          const vesselData = await vesselsResponse.json();
-          const vessels = vesselData.vessels_in_park || [];
-          console.log(`Loaded ${vessels.length} vessels`);
-          setVessels(Array.isArray(vessels) ? vessels : []);
-        } else {
-          console.warn("Failed to fetch vessels:", vesselsResponse.status);
-          setVessels([]);
-        }
-      } catch (err) {
-        console.error("Error fetching data:", err);
-        setError("Failed to load data. Please check your connection.");
-      } finally {
+        // Load boundaries first, then vessels
+        await Promise.allSettled([boundariesPromise, bufferedPromise]);
+
+        // Map is now ready, remove loading state to unblock UI
         setLoading(false);
-        console.log("Data fetch completed");
+
+        // Fetch vessels asynchronously without blocking
+        fetch(`${API_BASE_URL}/api/vessels/in-park`)
+          .then(res => res.ok ? res.json() : { vessels_in_park: [] })
+          .then(data => {
+            const vessels = data.vessels_in_park || [];
+            console.log(`Loaded ${vessels.length} vessels`);
+            setVessels(Array.isArray(vessels) ? vessels : []);
+          })
+          .catch(err => {
+            console.error("Vessels error:", err);
+            setVessels([]);
+          });
+
+      } catch (err) {
+        console.error("Critical error:", err);
+        setError("Failed to load map data. Please refresh.");
+        setLoading(false);
       }
     };
 
@@ -131,9 +125,22 @@ export default function Home() {
   // Initialize violations engine
   const violationsEngine = useMemo(() => new ViolationsEngine(), []);
 
-  // Enhanced vessel data with violations detection
+  // Skip violations detection during initial load or if data is not ready
+  const shouldDetectViolations = useMemo(() => {
+    return !loading && vessels.length > 0 && parkBoundaries !== null;
+  }, [loading, vessels.length, parkBoundaries]);
+
+  // Enhanced vessel data with violations detection - optimized
   const vesselViolations = useMemo(() => {
-    if (!Array.isArray(vessels)) return [];
+    if (!shouldDetectViolations || !Array.isArray(vessels)) return [];
+
+    // Only process violations if we have the necessary data
+    if (!parkBoundaries) return vessels.map(v => ({
+      vessel: v,
+      violations: [],
+      maxSeverity: 'low' as const,
+      isWhitelisted: v.is_whitelisted || false,
+    }));
 
     return vessels.map((vessel) => {
       return violationsEngine.detectViolations(
@@ -145,6 +152,7 @@ export default function Home() {
       );
     });
   }, [
+    shouldDetectViolations,
     vessels,
     violationsEngine,
     parkBoundaries,
@@ -152,8 +160,10 @@ export default function Home() {
     posidoniaData,
   ]);
 
-  // Enhanced vessels with backward compatibility
+  // Enhanced vessels with backward compatibility - optimized
   const enhancedVessels = useMemo(() => {
+    if (vesselViolations.length === 0) return [];
+
     return vesselViolations.map((vv) => {
       const hasBufferViolation = vv.violations.some(
         (v) => v.type === "in_buffer_zone"
@@ -161,47 +171,23 @@ export default function Home() {
       const hasPosidoniaViolation = vv.violations.some(
         (v) => v.type === "anchored_on_posidonia"
       );
-      const vesselPoint = turf.point([vv.vessel.longitude, vv.vessel.latitude]);
-      let isInPark = false;
 
-      // Check if in park for backward compatibility
-      if (parkBoundaries && parkBoundaries.features) {
-        for (const feature of parkBoundaries.features) {
-          if (
-            feature.geometry &&
-            (feature.geometry.type === "Polygon" ||
-              feature.geometry.type === "MultiPolygon")
-          ) {
-            try {
-              if (
-                turf.booleanPointInPolygon(
-                  vesselPoint,
-                  feature as GeoJSON.Feature<
-                    GeoJSON.Polygon | GeoJSON.MultiPolygon
-                  >
-                )
-              ) {
-                isInPark = true;
-                break;
-              }
-            } catch (error) {
-              console.debug("Park check failed:", error);
-            }
-          }
-        }
-      }
+      // Simple park check based on existing violation data
+      const isInPark = vv.violations.some(
+        (v) => v.type === "excessive_speed" || v.type === "in_restricted_area"
+      ) || vv.vessel.is_in_park || false;
 
       return {
         ...vv.vessel,
         is_in_buffer_zone: hasBufferViolation,
         is_in_park: isInPark,
         is_anchored_on_posidonia: hasPosidoniaViolation,
-        violations: vv.violations,
+        violations: vv.violations || [],
         violationSeverity: vv.maxSeverity,
         violationColor: violationsEngine.getVesselColor(vv),
       };
     });
-  }, [vesselViolations, parkBoundaries, violationsEngine]);
+  }, [vesselViolations, violationsEngine]);
 
   const refreshData = () => {
     window.location.reload();

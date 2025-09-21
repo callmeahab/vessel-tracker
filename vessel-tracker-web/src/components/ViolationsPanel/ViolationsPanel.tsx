@@ -25,35 +25,55 @@ export default function ViolationsPanel({
   onVesselClick,
   onTrackHistory,
 }: ViolationsPanelProps) {
-  // Group vessels by violation severity
+  // Group vessels by violation severity - optimized
   const vesselsByViolation = useMemo(() => {
+    if (!isOpen) {
+      // Don't process if panel is closed
+      return {
+        critical: [],
+        high: [],
+        medium: [],
+        low: [],
+        noViolations: [],
+        totalViolations: 0,
+      };
+    }
+
     const vesselsWithViolations = vessels as VesselWithViolations[];
-
-    const critical = vesselsWithViolations.filter(
-      v => v.violations && v.violations.length > 0 && v.violationSeverity === ViolationSeverity.CRITICAL
-    );
-    const high = vesselsWithViolations.filter(
-      v => v.violations && v.violations.length > 0 && v.violationSeverity === ViolationSeverity.HIGH
-    );
-    const medium = vesselsWithViolations.filter(
-      v => v.violations && v.violations.length > 0 && v.violationSeverity === ViolationSeverity.MEDIUM
-    );
-    const low = vesselsWithViolations.filter(
-      v => v.violations && v.violations.length > 0 && v.violationSeverity === ViolationSeverity.LOW
-    );
-    const noViolations = vesselsWithViolations.filter(
-      v => !v.violations || v.violations.length === 0
-    );
-
-    return {
-      critical,
-      high,
-      medium,
-      low,
-      noViolations,
-      totalViolations: critical.length + high.length + medium.length + low.length,
+    const result = {
+      critical: [] as VesselWithViolations[],
+      high: [] as VesselWithViolations[],
+      medium: [] as VesselWithViolations[],
+      low: [] as VesselWithViolations[],
+      noViolations: [] as VesselWithViolations[],
+      totalViolations: 0,
     };
-  }, [vessels]);
+
+    // Single pass through vessels
+    for (const vessel of vesselsWithViolations) {
+      if (vessel.violations && vessel.violations.length > 0) {
+        switch (vessel.violationSeverity) {
+          case ViolationSeverity.CRITICAL:
+            result.critical.push(vessel);
+            break;
+          case ViolationSeverity.HIGH:
+            result.high.push(vessel);
+            break;
+          case ViolationSeverity.MEDIUM:
+            result.medium.push(vessel);
+            break;
+          case ViolationSeverity.LOW:
+            result.low.push(vessel);
+            break;
+        }
+        result.totalViolations++;
+      } else {
+        result.noViolations.push(vessel);
+      }
+    }
+
+    return result;
+  }, [vessels, isOpen]);
 
   const handleTrackHistory = useCallback(
     (uuid: string, name: string) => {

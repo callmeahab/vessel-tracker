@@ -282,44 +282,7 @@ h1, h2, h3, h4, h5, h6 {
   display: block !important;
 }
 
-.map-loading-overlay {
-  position: absolute;
-  inset: 0;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 20;
-}
-
-.map-loading-content {
-  text-align: center;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  background: rgba(255, 255, 255, 0.4);
-  padding: 2rem;
-  border-radius: 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-}
-
-.map-spinner {
-  width: 3rem;
-  height: 3rem;
-  border: 2px solid transparent;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.8);
-  border-radius: 50%;
-  margin: 0 auto 1rem;
-  animation: spin 1s linear infinite;
-}
-
-.map-loading-text {
-  color: white;
-  font-weight: 500;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-}
+/* Removed blocking overlay styles - using inline non-blocking indicator instead */
 
 @keyframes spin {
   0% { transform: rotate(0deg); }

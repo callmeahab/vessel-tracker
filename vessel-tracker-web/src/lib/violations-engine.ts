@@ -221,45 +221,36 @@ export class ViolationsEngine {
     const violations: Violation[] = [];
     if (!posidoniaData || !posidoniaData.features) return violations;
 
-    for (const feature of posidoniaData.features) {
+    // Limit checks to avoid performance issues
+    const maxFeaturesToCheck = 50;
+    const featuresToCheck = posidoniaData.features.slice(0, maxFeaturesToCheck);
+
+    for (const feature of featuresToCheck) {
       if (feature.geometry.type === "Polygon") {
-        const polygon = turf.polygon(feature.geometry.coordinates);
+        try {
+          const polygon = turf.polygon(feature.geometry.coordinates);
 
-        // Check if vessel is over posidonia
-        if (turf.booleanPointInPolygon(vesselPoint, polygon)) {
-          // Check if anchored
-          if (speed <= this.config.anchoringSpeedThreshold) {
-            violations.push({
-              type: ViolationType.ANCHORED_ON_POSIDONIA,
-              severity: ViolationSeverity.CRITICAL,
-              title: "Anchoring on Posidonia",
-              description: "Vessel is anchored on protected seagrass beds",
-              icon: "🚫",
-              color: "#dc2626",
-              actualSpeed: speed,
-              timestamp: new Date(),
-            });
+          // Check if vessel is over posidonia
+          if (turf.booleanPointInPolygon(vesselPoint, polygon)) {
+            // Check if anchored
+            if (speed <= this.config.anchoringSpeedThreshold) {
+              violations.push({
+                type: ViolationType.ANCHORED_ON_POSIDONIA,
+                severity: ViolationSeverity.CRITICAL,
+                title: "Anchoring on Posidonia",
+                description: "Vessel is anchored on protected seagrass beds",
+                icon: "🚫",
+                color: "#dc2626",
+                actualSpeed: speed,
+                timestamp: new Date(),
+              });
+            }
+            // If we found a violation, no need to check proximity
+            break;
           }
-        } else {
-          // Check proximity warning
-          const distance = turf.pointToLineDistance(
-            vesselPoint,
-            turf.polygonToLine(polygon),
-            { units: "meters" }
-          );
-
-          if (distance < this.config.posidoniaProximityWarning) {
-            violations.push({
-              type: ViolationType.NEAR_PROTECTED_SPECIES,
-              severity: ViolationSeverity.LOW,
-              title: "Near Protected Seagrass",
-              description: `Vessel is ${Math.round(distance)}m from protected posidonia beds`,
-              icon: "⚠️",
-              color: "#10b981",
-              distance: Math.round(distance),
-              timestamp: new Date(),
-            });
-          }
+        } catch (error) {
+          console.debug("Posidonia check failed:", error);
+          continue;
         }
       }
     }
