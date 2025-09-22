@@ -23,6 +23,7 @@ export default function Home() {
   const [posidoniaData, setPosidoniaData] =
     useState<GeoJSON.FeatureCollection | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mapLoading, setMapLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [violationsPanelOpen, setViolationsPanelOpen] = useState(false);
   const [trackingVessel, setTrackingVessel] = useState<{
@@ -201,6 +202,7 @@ export default function Home() {
 
   const handleMapReady = useCallback((map: mapboxgl.Map) => {
     mapRef.current = map;
+    setMapLoading(false);
   }, []);
 
   const handleVesselClick = useCallback((vessel: VesselData) => {
@@ -452,78 +454,6 @@ export default function Home() {
     );
   }
 
-  if (loading) {
-    return (
-      <div
-        className="flex items-center justify-center min-h-screen relative overflow-hidden"
-        style={{
-          background:
-            "linear-gradient(135deg, #86efac 0%, #10b981 25%, #059669 75%, #1e3a8a 100%)",
-        }}
-      >
-        {/* Animated background waves */}
-        <div className="absolute inset-0">
-          <div className="absolute inset-0 opacity-20">
-            <div className="absolute w-full h-full animate-pulse">
-              <div
-                className="absolute top-1/4 left-0 w-96 h-96 bg-white/10 rounded-full blur-3xl animate-bounce"
-                style={{ animationDelay: "0s", animationDuration: "3s" }}
-              ></div>
-              <div
-                className="absolute top-1/2 right-0 w-64 h-64 bg-white/15 rounded-full blur-3xl animate-bounce"
-                style={{ animationDelay: "1s", animationDuration: "4s" }}
-              ></div>
-              <div
-                className="absolute bottom-1/4 left-1/3 w-48 h-48 bg-white/10 rounded-full blur-3xl animate-bounce"
-                style={{ animationDelay: "2s", animationDuration: "3.5s" }}
-              ></div>
-            </div>
-          </div>
-        </div>
-
-        <div className="text-center glass-heavy p-12 rounded-2xl shadow-3xl max-w-lg mx-4 relative z-10">
-          <MaritimeLoader
-            message="Initializing Maritime Sentinel"
-            size="lg"
-          />
-
-          <div className="space-y-3 mb-6 mt-8">
-            <div className="flex items-center justify-center space-x-2 text-white/90">
-              <div
-                className="w-2 h-2 bg-white rounded-full animate-pulse"
-                style={{ animationDelay: "0s" }}
-              ></div>
-              <span className="text-sm font-medium text-shadow-sm">
-                Loading park boundaries...
-              </span>
-            </div>
-            <div className="flex items-center justify-center space-x-2 text-white/90">
-              <div
-                className="w-2 h-2 bg-white rounded-full animate-pulse"
-                style={{ animationDelay: "0.5s" }}
-              ></div>
-              <span className="text-sm font-medium text-shadow-sm">
-                Mapping posidonia seagrass...
-              </span>
-            </div>
-            <div className="flex items-center justify-center space-x-2 text-white/90">
-              <div
-                className="w-2 h-2 bg-white rounded-full animate-pulse"
-                style={{ animationDelay: "1s" }}
-              ></div>
-              <span className="text-sm font-medium text-shadow-sm">
-                Preparing 3D visualization...
-              </span>
-            </div>
-          </div>
-
-          <p className="text-white/80 text-sm text-shadow-sm">
-            Preparing La Maddalena National Park monitoring system
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div
@@ -532,6 +462,48 @@ export default function Home() {
         background: "linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)",
       }}
     >
+      {/* Loading overlay */}
+      {(loading || mapLoading) && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/20">
+          <div className="text-center glass-heavy p-12 rounded-2xl shadow-3xl max-w-lg mx-4">
+            <MaritimeLoader message="Initializing Maritime Sentinel" size="lg" />
+
+            <div className="space-y-3 mb-6 mt-8">
+              <div className="flex items-center justify-center space-x-2 text-white/90">
+                <div
+                  className="w-2 h-2 bg-white rounded-full animate-pulse"
+                  style={{ animationDelay: "0s" }}
+                ></div>
+                <span className="text-sm font-medium text-shadow-sm">
+                  Loading park boundaries...
+                </span>
+              </div>
+              <div className="flex items-center justify-center space-x-2 text-white/90">
+                <div
+                  className="w-2 h-2 bg-white rounded-full animate-pulse"
+                  style={{ animationDelay: "0.5s" }}
+                ></div>
+                <span className="text-sm font-medium text-shadow-sm">
+                  Mapping posidonia seagrass...
+                </span>
+              </div>
+              <div className="flex items-center justify-center space-x-2 text-white/90">
+                <div
+                  className="w-2 h-2 bg-white rounded-full animate-pulse"
+                  style={{ animationDelay: "1s" }}
+                ></div>
+                <span className="text-sm font-medium text-shadow-sm">
+                  {mapLoading ? "Initializing map..." : "Finding park rule violations..."}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-white/80 text-sm text-shadow-sm">
+              Preparing La Maddalena National Park monitoring system
+            </p>
+          </div>
+        </div>
+      )}
       <Header
         vesselCount={
           Array.isArray(enhancedVessels) ? enhancedVessels.length : 0

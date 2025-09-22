@@ -25,7 +25,6 @@ import {
   MdNature,
 } from "react-icons/md";
 import { ReactElement } from "react";
-import MaritimeLoader from "@/components/MaritimeLoader/MaritimeLoader";
 
 function debounce<TArgs extends unknown[], TReturn>(
   func: (...args: TArgs) => TReturn,
@@ -149,9 +148,9 @@ export default function MapComponent({
   layerVisibility: externalLayerVisibility,
 }: MapProps) {
   const mapRef = useRef<MapRef>(null);
+  const mapLoadedRef = useRef(false);
   const [posidoniaData, setPosidoniaData] =
     useState<GeoJSON.FeatureCollection | null>(null);
-  const [mapInitialized, setMapInitialized] = useState(false);
 
   // Layer visibility state (use external or internal)
   const [internalLayerVisibility] = useState<Record<string, boolean>>({
@@ -422,6 +421,11 @@ export default function MapComponent({
 
   // Handle map load
   const onMapLoad = useCallback(() => {
+    if (mapLoadedRef.current) {
+      console.log("Map already loaded, skipping duplicate call");
+      return;
+    }
+    mapLoadedRef.current = true;
     console.log("Map loaded successfully");
     if (onMapReady && mapRef.current) {
       onMapReady(mapRef.current.getMap());
@@ -652,21 +656,9 @@ export default function MapComponent({
 
   return (
     <div className="map-container">
-      {/* Map initialization loading state */}
-      {!mapInitialized && (
-        <div className="absolute inset-0 flex items-center justify-center z-30">
-          <div className="glass-heavy px-8 py-6 rounded-xl shadow-2xl">
-            <MaritimeLoader
-              message="Charting marine territory..."
-              size="md"
-            />
-          </div>
-        </div>
-      )}
-
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: mapInitialized ? 1 : 0.3, scale: 1 }}
+        animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5 }}
         className="map"
       >
@@ -691,67 +683,84 @@ export default function MapComponent({
 
             // Create a single white boat icon that can be colored dynamically
             const createBoatIcon = () => {
-              const size = 32;
-              const canvas = document.createElement("canvas");
-              canvas.width = size;
-              canvas.height = size;
-              const ctx = canvas.getContext("2d")!;
+              try {
+                // Check if icon already exists
+                if (map.hasImage("boat-icon")) {
+                  console.log("boat-icon already exists, skipping creation");
+                  return;
+                }
 
-              // Clear canvas with transparency
-              ctx.clearRect(0, 0, size, size);
+                const size = 32;
+                const canvas = document.createElement("canvas");
+                canvas.width = size;
+                canvas.height = size;
+                const ctx = canvas.getContext("2d")!;
 
-              // Draw boat shape in white (will be colored by Mapbox)
-              ctx.fillStyle = "#ffffff";
-              ctx.strokeStyle = "#000000";
-              ctx.lineWidth = 2;
+                // Clear canvas with transparency
+                ctx.clearRect(0, 0, size, size);
 
-              // Boat hull
-              ctx.beginPath();
-              ctx.ellipse(
-                size / 2,
-                size * 0.7,
-                size * 0.3,
-                size * 0.15,
-                0,
-                0,
-                Math.PI * 2
-              );
-              ctx.fill();
-              ctx.stroke();
+                // Draw boat shape in white (will be colored by Mapbox)
+                ctx.fillStyle = "#ffffff";
+                ctx.strokeStyle = "#000000";
+                ctx.lineWidth = 2;
 
-              // Mast
-              ctx.beginPath();
-              ctx.moveTo(size / 2, size * 0.55);
-              ctx.lineTo(size / 2, size * 0.2);
-              ctx.stroke();
+                // Boat hull
+                ctx.beginPath();
+                ctx.ellipse(
+                  size / 2,
+                  size * 0.7,
+                  size * 0.3,
+                  size * 0.15,
+                  0,
+                  0,
+                  Math.PI * 2
+                );
+                ctx.fill();
+                ctx.stroke();
 
-              // Sail
-              ctx.fillStyle = "#ffffff";
-              ctx.beginPath();
-              ctx.moveTo(size / 2, size * 0.2);
-              ctx.lineTo(size * 0.75, size * 0.4);
-              ctx.lineTo(size / 2, size * 0.55);
-              ctx.closePath();
-              ctx.fill();
-              ctx.stroke();
+                // Mast
+                ctx.beginPath();
+                ctx.moveTo(size / 2, size * 0.55);
+                ctx.lineTo(size / 2, size * 0.2);
+                ctx.stroke();
 
-              // Get ImageData and add to map
-              const imageData = ctx.getImageData(0, 0, size, size);
-              map.addImage("boat-icon", imageData);
+                // Sail
+                ctx.fillStyle = "#ffffff";
+                ctx.beginPath();
+                ctx.moveTo(size / 2, size * 0.2);
+                ctx.lineTo(size * 0.75, size * 0.4);
+                ctx.lineTo(size / 2, size * 0.55);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Get ImageData and add to map
+                const imageData = ctx.getImageData(0, 0, size, size);
+                map.addImage("boat-icon", imageData);
+                console.log("boat-icon created successfully");
+              } catch (error) {
+                console.error("Failed to create boat-icon:", error);
+              }
             };
-
-            // Create the boat icon immediately
-            createBoatIcon();
 
             // Handle missing images
             map.on("styleimagemissing", (e) => {
+              console.log("Missing image:", e.id);
               if (e.id === "boat-icon") {
+                console.log("Attempting to recreate boat-icon");
                 createBoatIcon();
               }
             });
 
             // Enable 3D terrain and atmosphere
             map.on("style.load", () => {
+              console.log("Map style loaded, creating boat icon");
+              // Create the boat icon after style is loaded
+              createBoatIcon();
+
+              // Notify that map is ready
+              onMapLoad();
+
               // Add sky atmosphere layer
               if (!map.getLayer("sky")) {
                 map.addLayer({
@@ -838,7 +847,7 @@ export default function MapComponent({
               }
             });
 
-            setMapInitialized(true);
+            // Backup call in case style.load doesn't fire
             onMapLoad();
           }}
           onClick={onMapClick}
