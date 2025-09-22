@@ -15,6 +15,17 @@ import {
   MapPopupControl,
   VesselProperties,
 } from "@/components/MapPopup/MapPopup";
+import {
+  MdDirectionsBoat,
+  MdWarning,
+  MdDangerous,
+  MdPark,
+  MdShield,
+  MdEco,
+  MdNature,
+} from "react-icons/md";
+import { ReactElement } from "react";
+import MaritimeLoader from "@/components/MaritimeLoader/MaritimeLoader";
 
 function debounce<TArgs extends unknown[], TReturn>(
   func: (...args: TArgs) => TReturn,
@@ -34,7 +45,7 @@ export interface LayerConfig {
   id: string;
   name: string;
   color: string;
-  icon: string;
+  icon: ReactElement;
   description: string;
   visible: boolean;
   type: "vessels" | "posidonia" | "boundaries";
@@ -61,7 +72,7 @@ export function useMapLayers(
         id: "vessels",
         name: "Vessels",
         color: "#0ea5e9",
-        icon: "⛵",
+        icon: <MdDirectionsBoat />,
         description: "All tracked vessels in the area",
         visible: layerVisibility.vessels,
         type: "vessels",
@@ -71,7 +82,7 @@ export function useMapLayers(
         id: "posidonia-healthy",
         name: "Healthy Posidonia",
         color: "#10b981",
-        icon: "🌿",
+        icon: <MdEco />,
         description: "Thriving seagrass beds",
         visible: layerVisibility["posidonia-healthy"],
         type: "posidonia",
@@ -80,7 +91,7 @@ export function useMapLayers(
         id: "posidonia-degraded",
         name: "Degraded Posidonia",
         color: "#f59e0b",
-        icon: "⚠️",
+        icon: <MdWarning />,
         description: "Damaged seagrass areas",
         visible: layerVisibility["posidonia-degraded"],
         type: "posidonia",
@@ -89,7 +100,7 @@ export function useMapLayers(
         id: "posidonia-dead",
         name: "Dead Matte",
         color: "#059669",
-        icon: "💀",
+        icon: <MdDangerous />,
         description: "Former seagrass bed remains",
         visible: layerVisibility["posidonia-dead"],
         type: "posidonia",
@@ -98,7 +109,7 @@ export function useMapLayers(
         id: "posidonia-standard",
         name: "Standard Posidonia",
         color: "#7dd3fc",
-        icon: "🌱",
+        icon: <MdNature />,
         description: "Standard seagrass beds on rocky substrate",
         visible: layerVisibility["posidonia-standard"],
         type: "posidonia",
@@ -108,7 +119,7 @@ export function useMapLayers(
         id: "park-boundaries",
         name: "Park Boundaries",
         color: "#10b981",
-        icon: "🌳",
+        icon: <MdPark />,
         description: "Protected marine park area",
         visible: layerVisibility["park-boundaries"],
         type: "boundaries",
@@ -118,7 +129,7 @@ export function useMapLayers(
         id: "buffer-zone",
         name: "Buffer Zone",
         color: "#f59e0b",
-        icon: "⚡",
+        icon: <MdShield />,
         description: "150m buffer around park",
         visible: layerVisibility["buffer-zone"],
         type: "boundaries",
@@ -312,6 +323,7 @@ export default function MapComponent({
 
         // Check posidonia violations (only if data is available)
         if (posidoniaData && posidoniaData.features) {
+          // Check all posidonia features for comprehensive violation detection
           for (const feature of posidoniaData.features) {
             if (feature.geometry.type === "Polygon") {
               const polygon = turf.polygon(feature.geometry.coordinates);
@@ -319,6 +331,7 @@ export default function MapComponent({
               // Check if point is inside polygon
               if (turf.booleanPointInPolygon(vesselPoint, polygon)) {
                 // Only consider it a violation if vessel is anchored (low speed)
+                // Use same threshold as violations engine: 0.5 knots
                 if (speed !== null && speed <= 0.5) {
                   result.isOverPosidonia = true;
                   result.posidoniaFeature = feature;
@@ -418,6 +431,27 @@ export default function MapComponent({
     setTimeout(() => {
       if (mapRef.current) {
         const map = mapRef.current.getMap();
+
+        // Move vessel layers to the top to ensure they appear above posidonia
+        const moveVesselLayersToTop = () => {
+          const vesselLayers = [
+            "vessels-circle",
+            "vessels-icons",
+            "vessels-labels",
+          ];
+          vesselLayers.forEach((layerId) => {
+            if (map.getLayer(layerId)) {
+              try {
+                map.moveLayer(layerId);
+              } catch (error) {
+                console.debug(`Failed to move layer ${layerId} to top:`, error);
+              }
+            }
+          });
+        };
+
+        // Move vessel layers after a brief delay to ensure all layers are loaded
+        setTimeout(moveVesselLayersToTop, 50);
         Object.entries(layerVisibility).forEach(([layerId, visible]) => {
           switch (layerId) {
             case "vessels":
@@ -521,7 +555,7 @@ export default function MapComponent({
   const onMapClick = useCallback((event: mapboxgl.MapMouseEvent) => {
     // Check for vessel clicks first
     const vesselFeatures = event.target.queryRenderedFeatures(event.point, {
-      layers: ["vessels-circle"],
+      layers: ["vessels-circle", "vessels-icons"],
     });
 
     if (vesselFeatures && vesselFeatures.length > 0) {
@@ -594,7 +628,7 @@ export default function MapComponent({
   // Handle cursor changes for vessel and posidonia hovers
   const onMouseMove = useCallback((event: mapboxgl.MapMouseEvent) => {
     const vesselFeatures = event.target.queryRenderedFeatures(event.point, {
-      layers: ["vessels-circle"],
+      layers: ["vessels-circle", "vessels-icons"],
     });
 
     const posidoniaFeatures = event.target.queryRenderedFeatures(event.point, {
@@ -621,13 +655,11 @@ export default function MapComponent({
       {/* Map initialization loading state */}
       {!mapInitialized && (
         <div className="absolute inset-0 flex items-center justify-center z-30">
-          <div className="glass-heavy px-6 py-4 rounded-xl flex flex-col items-center gap-3 shadow-2xl">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-              className="w-8 h-8 border-3 border-white/30 border-t-white rounded-full"
+          <div className="glass-heavy px-8 py-6 rounded-xl shadow-2xl">
+            <MaritimeLoader
+              message="Charting marine territory..."
+              size="md"
             />
-            <p className="text-white font-medium text-shadow">Initializing map...</p>
           </div>
         </div>
       )}
@@ -645,18 +677,180 @@ export default function MapComponent({
             longitude: 9.4167,
             latitude: 41.2167,
             zoom: 10,
+            pitch: 45,
+            bearing: -17.6,
           }}
+          projection="globe"
           style={{ width: "100%", height: "100%" }}
           mapStyle="mapbox://styles/mapbox/satellite-streets-v12"
           onLoad={(event) => {
+            const map = event.target;
+
+            // Enable globe projection
+            map.setProjection("globe");
+
+            // Create a single white boat icon that can be colored dynamically
+            const createBoatIcon = () => {
+              const size = 32;
+              const canvas = document.createElement("canvas");
+              canvas.width = size;
+              canvas.height = size;
+              const ctx = canvas.getContext("2d")!;
+
+              // Clear canvas with transparency
+              ctx.clearRect(0, 0, size, size);
+
+              // Draw boat shape in white (will be colored by Mapbox)
+              ctx.fillStyle = "#ffffff";
+              ctx.strokeStyle = "#000000";
+              ctx.lineWidth = 2;
+
+              // Boat hull
+              ctx.beginPath();
+              ctx.ellipse(
+                size / 2,
+                size * 0.7,
+                size * 0.3,
+                size * 0.15,
+                0,
+                0,
+                Math.PI * 2
+              );
+              ctx.fill();
+              ctx.stroke();
+
+              // Mast
+              ctx.beginPath();
+              ctx.moveTo(size / 2, size * 0.55);
+              ctx.lineTo(size / 2, size * 0.2);
+              ctx.stroke();
+
+              // Sail
+              ctx.fillStyle = "#ffffff";
+              ctx.beginPath();
+              ctx.moveTo(size / 2, size * 0.2);
+              ctx.lineTo(size * 0.75, size * 0.4);
+              ctx.lineTo(size / 2, size * 0.55);
+              ctx.closePath();
+              ctx.fill();
+              ctx.stroke();
+
+              // Get ImageData and add to map
+              const imageData = ctx.getImageData(0, 0, size, size);
+              map.addImage("boat-icon", imageData);
+            };
+
+            // Create the boat icon immediately
+            createBoatIcon();
+
+            // Handle missing images
+            map.on("styleimagemissing", (e) => {
+              if (e.id === "boat-icon") {
+                createBoatIcon();
+              }
+            });
+
+            // Enable 3D terrain and atmosphere
+            map.on("style.load", () => {
+              // Add sky atmosphere layer
+              if (!map.getLayer("sky")) {
+                map.addLayer({
+                  id: "sky",
+                  type: "sky",
+                  paint: {
+                    "sky-type": "atmosphere",
+                    "sky-atmosphere-sun": [0.0, 90.0],
+                    "sky-atmosphere-sun-intensity": 15,
+                    "sky-atmosphere-color": "rgba(135, 206, 235, 0.5)",
+                    "sky-atmosphere-halo-color": "rgba(255, 255, 255, 0.5)",
+                  },
+                });
+              }
+
+              // Add terrain with DEM source
+              map.addSource("mapbox-dem", {
+                type: "raster-dem",
+                url: "mapbox://mapbox.mapbox-terrain-dem-v1",
+                tileSize: 512,
+                maxzoom: 14,
+              });
+
+              // Set terrain with exaggeration for 3D effect
+              map.setTerrain({
+                source: "mapbox-dem",
+                exaggeration: 1.5,
+              });
+
+              // Add 3D buildings
+              const layers = map.getStyle()?.layers;
+              if (layers) {
+                const labelLayerId = layers.find(
+                  (layer) =>
+                    layer.type === "symbol" && layer.layout?.["text-field"]
+                )?.id;
+
+                if (labelLayerId) {
+                  map.addLayer(
+                    {
+                      id: "3d-buildings",
+                      source: "composite",
+                      "source-layer": "building",
+                      filter: ["==", "extrude", "true"],
+                      type: "fill-extrusion",
+                      minzoom: 15,
+                      paint: {
+                        "fill-extrusion-color": [
+                          "interpolate",
+                          ["linear"],
+                          ["get", "height"],
+                          0,
+                          "rgba(125, 211, 252, 0.6)",
+                          50,
+                          "rgba(14, 165, 233, 0.6)",
+                          100,
+                          "rgba(3, 105, 161, 0.6)",
+                        ],
+                        "fill-extrusion-height": [
+                          "interpolate",
+                          ["linear"],
+                          ["zoom"],
+                          15,
+                          0,
+                          15.05,
+                          ["get", "height"],
+                        ],
+                        "fill-extrusion-base": [
+                          "interpolate",
+                          ["linear"],
+                          ["zoom"],
+                          15,
+                          0,
+                          15.05,
+                          ["get", "min_height"],
+                        ],
+                        "fill-extrusion-opacity": 0.8,
+                        "fill-extrusion-vertical-gradient": true,
+                      },
+                    },
+                    labelLayerId
+                  );
+                }
+              }
+            });
+
             setMapInitialized(true);
-            onMapLoad(event);
+            onMapLoad();
           }}
           onClick={onMapClick}
           onMouseMove={onMouseMove}
         >
-          {/* Navigation Controls */}
-          <NavigationControl position="bottom-right" />
+          {/* Navigation Controls with 3D support */}
+          <NavigationControl
+            position="bottom-right"
+            showCompass={true}
+            showZoom={true}
+            visualizePitch={true}
+          />
 
           {/* Buffered Boundaries - Rendered first (bottom layer) */}
           {bufferedBoundaries && (
@@ -908,21 +1102,71 @@ export default function MapComponent({
                   "circle-radius": 10,
                   "circle-color": [
                     "case",
+                    // Highest priority: Anchored on posidonia = RED
+                    ["get", "isAnchoredOnPosidonia"],
+                    "#dc2626",
+                    // Second priority: Violation color if available
                     ["has", "violationColor"],
                     ["get", "violationColor"],
+                    // Default: Other statuses
                     [
                       "case",
-                      ["get", "isAnchoredOnPosidonia"],
-                      "#10b981",
                       ["get", "isInPark"],
                       "#0ea5e9",
                       ["get", "isInBufferZone"],
                       "#f59e0b",
-                      "#7dd3fc",
-                    ]
+                      "#86efac",
+                    ],
                   ],
                   "circle-stroke-color": "#ffffff",
-                  "circle-stroke-width": 3,
+                  "circle-stroke-width": 2.5,
+                  "circle-pitch-alignment": "map",
+                  "circle-pitch-scale": "map",
+                }}
+              />
+              <Layer
+                id="vessels-icons"
+                type="symbol"
+                layout={{
+                  visibility: layerVisibility.vessels ? "visible" : "none",
+                  "icon-image": "boat-icon",
+                  "icon-size": 0.7,
+                  "icon-allow-overlap": true,
+                  "icon-ignore-placement": true,
+                  "icon-rotation-alignment": "map",
+                  "symbol-z-order": "source",
+                }}
+                paint={{
+                  "icon-opacity": 1.0,
+                  "icon-color": [
+                    "case",
+                    // Highest priority: Anchored on posidonia = RED
+                    ["get", "isAnchoredOnPosidonia"],
+                    "#dc2626",
+                    // Second priority: Violation severity
+                    ["has", "violationSeverity"],
+                    [
+                      "case",
+                      ["==", ["get", "violationSeverity"], "critical"],
+                      "#dc2626",
+                      ["==", ["get", "violationSeverity"], "high"],
+                      "#ef4444",
+                      ["==", ["get", "violationSeverity"], "medium"],
+                      "#f59e0b",
+                      ["==", ["get", "violationSeverity"], "low"],
+                      "#10b981",
+                      "#86efac",
+                    ],
+                    // Default: Other statuses
+                    [
+                      "case",
+                      ["get", "isInPark"],
+                      "#0ea5e9",
+                      ["get", "isInBufferZone"],
+                      "#f59e0b",
+                      "#86efac",
+                    ],
+                  ],
                 }}
               />
               <Layer
@@ -932,9 +1176,11 @@ export default function MapComponent({
                   visibility: layerVisibility.vessels ? "visible" : "none",
                   "text-field": ["get", "name"],
                   "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
-                  "text-offset": [0, -2.5],
+                  "text-offset": [0, -3],
                   "text-anchor": "bottom",
                   "text-size": 13,
+                  "text-allow-overlap": false,
+                  "symbol-z-order": "source",
                 }}
                 paint={{
                   "text-color": [
@@ -950,7 +1196,7 @@ export default function MapComponent({
                       ["get", "isInBufferZone"],
                       "#f59e0b",
                       "#7dd3fc",
-                    ]
+                    ],
                   ],
                   "text-halo-color": "#000000",
                   "text-halo-width": 2,
@@ -975,7 +1221,9 @@ export default function MapComponent({
               transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
               className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
             />
-            <span className="text-white text-sm font-medium text-shadow-sm">Loading vessels...</span>
+            <span className="text-white text-sm font-medium text-shadow-sm">
+              Loading vessels...
+            </span>
           </div>
         </motion.div>
       )}

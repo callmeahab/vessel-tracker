@@ -42,7 +42,7 @@ func (h *VesselHandler) GetVessels(c *gin.Context) {
 		params["fuzzy"] = fuzzy
 	}
 
-	maxResults := 500
+	maxResults := 0 // No limit by default - process all available vessels
 	if max := c.Query("max_results"); max != "" {
 		if val, err := strconv.Atoi(max); err == nil {
 			maxResults = val
@@ -137,6 +137,12 @@ func (h *VesselHandler) GetVesselsInPark(c *gin.Context) {
 		var vesselsFromAPI []gin.H
 		for _, vesselPos := range vesselPositions.Data.Vessels {
 			isInPark := h.geoService.IsPointInPark(vesselPos.Latitude, vesselPos.Longitude)
+
+			// Skip vessels that are not in the park - only return vessels within park boundaries
+			if !isInPark {
+				continue
+			}
+
 			isInBufferZone := h.geoService.IsPointInBufferZone(vesselPos.Latitude, vesselPos.Longitude)
 
 			// Check if vessel is whitelisted
@@ -187,7 +193,7 @@ func (h *VesselHandler) GetVesselsInPark(c *gin.Context) {
 		return
 	}
 
-	// Process database data
+	// Process database data - vessels are already filtered to only include those in park
 	var vesselsInPark []gin.H
 	for _, pos := range positions {
 		isInBufferZone := h.geoService.IsPointInBufferZone(pos.Latitude, pos.Longitude)
@@ -401,7 +407,7 @@ func (h *VesselHandler) GetVesselHistory(c *gin.Context) {
 
 	var startTime, endTime time.Time
 	var err error
-	limit := 100 // default limit
+	limit := 0 // No default limit - return all history
 
 	if startTimeStr != "" {
 		startTime, err = time.Parse(time.RFC3339, startTimeStr)

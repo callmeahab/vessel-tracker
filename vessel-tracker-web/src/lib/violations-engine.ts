@@ -26,7 +26,7 @@ export interface Violation {
   severity: ViolationSeverity;
   title: string;
   description: string;
-  icon: string;
+  icon: string; // Icon name or emoji for compatibility
   color: string;
   distance?: number; // Distance to violation boundary in meters
   speedLimit?: number; // Speed limit if applicable
@@ -81,19 +81,10 @@ export class ViolationsEngine {
     const violations: Violation[] = [];
     const vesselPoint = turf.point([vessel.longitude, vessel.latitude]);
 
-    // Check if vessel is in park
-    const isInPark = this.checkIfInPark(vesselPoint, parkBoundaries);
+    // All vessels are now pre-filtered by backend to be within park boundaries
+    // No need to check park boundaries again - proceed directly to violation detection
 
-    // Check buffer zone violation
-    if (!isInPark) {
-      const bufferViolation = this.checkBufferZoneViolation(
-        vesselPoint,
-        bufferedBoundaries
-      );
-      if (bufferViolation) violations.push(bufferViolation);
-    }
-
-    // Check posidonia violations
+    // Check posidonia violations (only within park)
     const posidoniaViolations = this.checkPosidoniaViolations(
       vesselPoint,
       vessel.vessel.speed || 0,
@@ -101,16 +92,14 @@ export class ViolationsEngine {
     );
     violations.push(...posidoniaViolations);
 
-    // Check speed violations in park
-    if (isInPark) {
-      const speedViolation = this.checkSpeedViolation(
-        vessel.vessel.speed || 0,
-        isInPark
-      );
-      if (speedViolation) violations.push(speedViolation);
-    }
+    // Check speed violations in park (all vessels are now within park)
+    const speedViolation = this.checkSpeedViolation(
+      vessel.vessel.speed || 0,
+      true
+    );
+    if (speedViolation) violations.push(speedViolation);
 
-    // Check shore proximity if shoreline data available
+    // Check shore proximity if shoreline data available (only within park)
     if (shoreline) {
       const shoreViolation = this.checkShoreProximity(vesselPoint, shoreline);
       if (shoreViolation) violations.push(shoreViolation);
@@ -137,37 +126,7 @@ export class ViolationsEngine {
     };
   }
 
-  /**
-   * Check if vessel is in park boundaries
-   */
-  private checkIfInPark(
-    vesselPoint: turf.Feature<turf.Point>,
-    parkBoundaries: GeoJSON.FeatureCollection | null
-  ): boolean {
-    if (!parkBoundaries || !parkBoundaries.features) return false;
-
-    for (const feature of parkBoundaries.features) {
-      if (
-        feature.geometry &&
-        (feature.geometry.type === "Polygon" ||
-          feature.geometry.type === "MultiPolygon")
-      ) {
-        try {
-          if (
-            turf.booleanPointInPolygon(
-              vesselPoint,
-              feature as turf.Feature<turf.Polygon | turf.MultiPolygon>
-            )
-          ) {
-            return true;
-          }
-        } catch (error) {
-          console.debug("Park boundary check failed:", error);
-        }
-      }
-    }
-    return false;
-  }
+  // checkIfInPark method removed - vessels are now pre-filtered by backend
 
   /**
    * Check buffer zone violation
@@ -196,7 +155,7 @@ export class ViolationsEngine {
               severity: ViolationSeverity.MEDIUM,
               title: "Buffer Zone Violation",
               description: `Vessel is within ${this.config.bufferZoneDistance}m buffer zone of protected area`,
-              icon: "⚡",
+              icon: "shield",
               color: "#f59e0b",
               distance: this.config.bufferZoneDistance,
               timestamp: new Date(),
@@ -221,11 +180,8 @@ export class ViolationsEngine {
     const violations: Violation[] = [];
     if (!posidoniaData || !posidoniaData.features) return violations;
 
-    // Limit checks to avoid performance issues
-    const maxFeaturesToCheck = 50;
-    const featuresToCheck = posidoniaData.features.slice(0, maxFeaturesToCheck);
-
-    for (const feature of featuresToCheck) {
+    // Check all posidonia features for comprehensive violation detection
+    for (const feature of posidoniaData.features) {
       if (feature.geometry.type === "Polygon") {
         try {
           const polygon = turf.polygon(feature.geometry.coordinates);
@@ -239,7 +195,7 @@ export class ViolationsEngine {
                 severity: ViolationSeverity.CRITICAL,
                 title: "Anchoring on Posidonia",
                 description: "Vessel is anchored on protected seagrass beds",
-                icon: "🚫",
+                icon: "anchor-ban",
                 color: "#dc2626",
                 actualSpeed: speed,
                 timestamp: new Date(),
@@ -265,14 +221,14 @@ export class ViolationsEngine {
     speed: number,
     isInPark: boolean
   ): Violation | null {
-    if (!isInPark || speed <= this.config.speedLimitInPark) return null;
+    if (speed <= this.config.speedLimitInPark) return null;
 
     return {
       type: ViolationType.EXCESSIVE_SPEED,
       severity: ViolationSeverity.MEDIUM,
       title: "Speed Violation",
       description: `Exceeding ${this.config.speedLimitInPark} knot speed limit in park`,
-      icon: "🚤",
+      icon: "speed",
       color: "#f59e0b",
       speedLimit: this.config.speedLimitInPark,
       actualSpeed: speed,
@@ -307,7 +263,7 @@ export class ViolationsEngine {
         severity: ViolationSeverity.HIGH,
         title: "Too Close to Shore",
         description: `Vessel is only ${Math.round(minDistance)}m from shore`,
-        icon: "🏖️",
+        icon: "shore-warning",
         color: "#ef4444",
         distance: Math.round(minDistance),
         timestamp: new Date(),
@@ -359,14 +315,14 @@ export class ViolationsEngine {
    * Get color for vessel based on violations
    */
   getVesselColor(violations: VesselViolations): string {
-    if (violations.violations.length === 0) return "#7dd3fc"; // Water blue
+    if (violations.violations.length === 0) return "#86efac"; // Turquoise/seafoam
 
     switch (violations.maxSeverity) {
       case ViolationSeverity.CRITICAL: return "#dc2626"; // Red
       case ViolationSeverity.HIGH: return "#ef4444"; // Light red
       case ViolationSeverity.MEDIUM: return "#f59e0b"; // Coral/amber
       case ViolationSeverity.LOW: return "#10b981"; // Seagrass green
-      default: return "#7dd3fc";
+      default: return "#86efac";
     }
   }
 

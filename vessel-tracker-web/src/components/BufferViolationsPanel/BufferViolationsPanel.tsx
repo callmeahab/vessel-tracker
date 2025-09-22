@@ -29,7 +29,7 @@ export default function BufferViolationsPanel({
       (vessel) => vessel.is_in_buffer_zone && vessel.is_whitelisted
     );
 
-    const vesselsInPark = vessels.filter((vessel) => vessel.is_in_park);
+    const vesselsInPark = vessels; // All vessels are now within park boundaries (filtered by backend)
 
     const posidoniaViolations = vessels.filter(
       (vessel) => vessel.is_anchored_on_posidonia

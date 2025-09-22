@@ -65,17 +65,18 @@
   --font-family-sans: 'Inter', system-ui, sans-serif;
   --font-family-serif: 'Merriweather', Georgia, serif;
 
-  /* Extended shadows */
-  --shadow-soft: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-  --shadow-medium: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-large: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  /* Enhanced 3D shadows */
+  --shadow-soft: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  --shadow-medium: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  --shadow-large: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1), inset 0 2px 0 rgba(255, 255, 255, 0.2);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1), inset 0 2px 0 rgba(255, 255, 255, 0.25);
+  --shadow-3d: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 12px 24px -8px rgba(0, 0, 0, 0.15), inset 0 3px 0 rgba(255, 255, 255, 0.3);
 }
 
 /* Base styles */
 body {
   font-family: var(--font-family-sans);
-  background: linear-gradient(135deg, #7dd3fc 0%, #0ea5e9 25%, #0369a1 75%, #1e3a8a 100%);
+  background: linear-gradient(135deg, #86efac 0%, #10b981 25%, #059669 75%, #1e3a8a 100%);
   min-height: 100vh;
 }
 
@@ -85,7 +86,7 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Glassmorphic utility classes */
 .glass {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.3);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -99,7 +100,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .glass-light {
-  background: rgba(255, 255, 255, 0.45);
+  background: rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.25);
@@ -113,7 +114,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .glass-ocean {
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.3), rgba(3, 105, 161, 0.2), rgba(14, 165, 233, 0.15));
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.8), rgba(5, 150, 105, 0.7), rgba(16, 185, 129, 0.65));
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -121,7 +122,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .glass-seagrass {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(5, 150, 105, 0.2), rgba(16, 185, 129, 0.15));
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.8), rgba(5, 150, 105, 0.7), rgba(16, 185, 129, 0.65));
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -129,7 +130,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .glass-coral {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.3), rgba(234, 88, 12, 0.2), rgba(245, 158, 11, 0.15));
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.8), rgba(234, 88, 12, 0.7), rgba(245, 158, 11, 0.65));
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -137,7 +138,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .glass-bubbles {
-  background: linear-gradient(135deg, rgba(125, 211, 252, 0.3), rgba(56, 189, 248, 0.2), rgba(125, 211, 252, 0.15));
+  background: linear-gradient(135deg, rgba(134, 239, 172, 0.3), rgba(74, 222, 128, 0.2), rgba(134, 239, 172, 0.15));
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -146,11 +147,11 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Enhanced gradient utilities for marine theme */
 .gradient-ocean-deep {
-  background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 50%, #1e3a8a 100%);
+  background: linear-gradient(135deg, #10b981 0%, #059669 50%, #1e3a8a 100%);
 }
 
 .gradient-ocean-light {
-  background: linear-gradient(135deg, #7dd3fc 0%, #0ea5e9 50%, #0369a1 100%);
+  background: linear-gradient(135deg, #86efac 0%, #10b981 50%, #059669 100%);
 }
 
 .gradient-seagrass {
@@ -166,11 +167,11 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .gradient-marine-sunset {
-  background: linear-gradient(135deg, #f59e0b 0%, #10b981 50%, #0ea5e9 100%);
+  background: linear-gradient(135deg, #f59e0b 0%, #10b981 50%, #10b981 100%);
 }
 
 .gradient-ocean-depths {
-  background: linear-gradient(180deg, #7dd3fc 0%, #0ea5e9 30%, #0369a1 70%, #1e3a8a 100%);
+  background: linear-gradient(180deg, #86efac 0%, #10b981 30%, #059669 70%, #1e3a8a 100%);
 }
 
 /* Maritime themed button utilities */
@@ -208,7 +209,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .badge-info {
-  @apply bg-ocean-blue-100 text-ocean-blue-800 border-ocean-blue-300 px-2 py-0.5 rounded-lg text-xs font-medium border;
+  @apply bg-seafoam-100 text-seafoam-800 border-seafoam-300 px-2 py-0.5 rounded-lg text-xs font-medium border;
 }
 
 /* Glassmorphic popup styles - These are for Mapbox popup customization */
@@ -370,6 +371,26 @@ h1, h2, h3, h4, h5, h6 {
 
 .text-shadow-lg {
   text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.6);
+}
+
+.text-shadow-3d {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7);
+}
+
+/* Loading animation */
+@keyframes loading-progress {
+  0% {
+    width: 0%;
+    opacity: 0.5;
+  }
+  50% {
+    width: 70%;
+    opacity: 1;
+  }
+  100% {
+    width: 100%;
+    opacity: 0.8;
+  }
 }
 
 /* Responsive adjustments */

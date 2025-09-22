@@ -3,13 +3,16 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import mapboxgl from "mapbox-gl";
-import * as turf from "@turf/turf";
 import { VesselData, VesselHistoryResponse } from "@/types/vessel";
 import Header from "@/components/Header/Header";
 import Legend from "@/components/Legend/Legend";
 import MapComponent, { useMapLayers } from "@/components/Map/Map";
 import ViolationsPanel from "@/components/ViolationsPanel/ViolationsPanel";
-import ViolationsEngine from "@/lib/violations-engine";
+import ViolationsEngine, {
+  ViolationSeverity,
+  type VesselViolations,
+} from "@/lib/violations-engine";
+import MaritimeLoader from "@/components/MaritimeLoader/MaritimeLoader";
 
 export default function Home() {
   const [vessels, setVessels] = useState<VesselData[]>([]);
@@ -55,24 +58,24 @@ export default function Home() {
 
         // Fetch critical data first (boundaries) in parallel
         const boundariesPromise = fetch(`${API_BASE_URL}/api/park-boundaries`)
-          .then(res => res.ok ? res.json() : null)
-          .then(data => {
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
             if (data) {
               setParkBoundaries(data);
               console.log("Park boundaries loaded");
             }
           })
-          .catch(err => console.error("Boundaries error:", err));
+          .catch((err) => console.error("Boundaries error:", err));
 
         const bufferedPromise = fetch(`${API_BASE_URL}/api/buffered-boundaries`)
-          .then(res => res.ok ? res.json() : null)
-          .then(data => {
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
             if (data) {
               setBufferedBoundaries(data);
               console.log("Buffered boundaries loaded");
             }
           })
-          .catch(err => console.error("Buffered error:", err));
+          .catch((err) => console.error("Buffered error:", err));
 
         // Load boundaries first, then vessels
         await Promise.allSettled([boundariesPromise, bufferedPromise]);
@@ -82,17 +85,16 @@ export default function Home() {
 
         // Fetch vessels asynchronously without blocking
         fetch(`${API_BASE_URL}/api/vessels/in-park`)
-          .then(res => res.ok ? res.json() : { vessels_in_park: [] })
-          .then(data => {
+          .then((res) => (res.ok ? res.json() : { vessels_in_park: [] }))
+          .then((data) => {
             const vessels = data.vessels_in_park || [];
             console.log(`Loaded ${vessels.length} vessels`);
             setVessels(Array.isArray(vessels) ? vessels : []);
           })
-          .catch(err => {
+          .catch((err) => {
             console.error("Vessels error:", err);
             setVessels([]);
           });
-
       } catch (err) {
         console.error("Critical error:", err);
         setError("Failed to load map data. Please refresh.");
@@ -131,16 +133,17 @@ export default function Home() {
   }, [loading, vessels.length, parkBoundaries]);
 
   // Enhanced vessel data with violations detection - optimized
-  const vesselViolations = useMemo(() => {
+  const vesselViolations: VesselViolations[] = useMemo(() => {
     if (!shouldDetectViolations || !Array.isArray(vessels)) return [];
 
     // Only process violations if we have the necessary data
-    if (!parkBoundaries) return vessels.map(v => ({
-      vessel: v,
-      violations: [],
-      maxSeverity: 'low' as const,
-      isWhitelisted: v.is_whitelisted || false,
-    }));
+    if (!parkBoundaries)
+      return vessels.map((v) => ({
+        vessel: v,
+        violations: [],
+        maxSeverity: ViolationSeverity.LOW,
+        isWhitelisted: v.is_whitelisted || false,
+      }));
 
     return vessels.map((vessel) => {
       return violationsEngine.detectViolations(
@@ -173,9 +176,12 @@ export default function Home() {
       );
 
       // Simple park check based on existing violation data
-      const isInPark = vv.violations.some(
-        (v) => v.type === "excessive_speed" || v.type === "in_restricted_area"
-      ) || vv.vessel.is_in_park || false;
+      const isInPark =
+        vv.violations.some(
+          (v) => v.type === "excessive_speed" || v.type === "in_restricted_area"
+        ) ||
+        vv.vessel.is_in_park ||
+        false;
 
       return {
         ...vv.vessel,
@@ -217,9 +223,9 @@ export default function Home() {
       try {
         setTrackingVessel({ uuid: vesselUuid, name: vesselName });
 
-        // Fetch vessel history from the last 7 days
+        // Fetch vessel history from the last 7 days (no limit for full data)
         const response = await fetch(
-          `${API_BASE_URL}/api/vessels/${vesselUuid}/history?limit=100`
+          `${API_BASE_URL}/api/vessels/${vesselUuid}/history`
         );
 
         if (response.ok) {
@@ -428,7 +434,8 @@ export default function Home() {
       <div
         className="flex items-center justify-center min-h-screen"
         style={{
-          background: "linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)",
+          background:
+            "linear-gradient(135deg, #86efac 0%, #10b981 25%, #059669 75%, #1e3a8a 100%)",
         }}
       >
         <div className="text-center glass-heavy p-8 rounded-xl shadow-2xl max-w-md mx-4">
@@ -445,6 +452,79 @@ export default function Home() {
     );
   }
 
+  if (loading) {
+    return (
+      <div
+        className="flex items-center justify-center min-h-screen relative overflow-hidden"
+        style={{
+          background:
+            "linear-gradient(135deg, #86efac 0%, #10b981 25%, #059669 75%, #1e3a8a 100%)",
+        }}
+      >
+        {/* Animated background waves */}
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 opacity-20">
+            <div className="absolute w-full h-full animate-pulse">
+              <div
+                className="absolute top-1/4 left-0 w-96 h-96 bg-white/10 rounded-full blur-3xl animate-bounce"
+                style={{ animationDelay: "0s", animationDuration: "3s" }}
+              ></div>
+              <div
+                className="absolute top-1/2 right-0 w-64 h-64 bg-white/15 rounded-full blur-3xl animate-bounce"
+                style={{ animationDelay: "1s", animationDuration: "4s" }}
+              ></div>
+              <div
+                className="absolute bottom-1/4 left-1/3 w-48 h-48 bg-white/10 rounded-full blur-3xl animate-bounce"
+                style={{ animationDelay: "2s", animationDuration: "3.5s" }}
+              ></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="text-center glass-heavy p-12 rounded-2xl shadow-3xl max-w-lg mx-4 relative z-10">
+          <MaritimeLoader
+            message="Initializing Maritime Sentinel"
+            size="lg"
+          />
+
+          <div className="space-y-3 mb-6 mt-8">
+            <div className="flex items-center justify-center space-x-2 text-white/90">
+              <div
+                className="w-2 h-2 bg-white rounded-full animate-pulse"
+                style={{ animationDelay: "0s" }}
+              ></div>
+              <span className="text-sm font-medium text-shadow-sm">
+                Loading park boundaries...
+              </span>
+            </div>
+            <div className="flex items-center justify-center space-x-2 text-white/90">
+              <div
+                className="w-2 h-2 bg-white rounded-full animate-pulse"
+                style={{ animationDelay: "0.5s" }}
+              ></div>
+              <span className="text-sm font-medium text-shadow-sm">
+                Mapping posidonia seagrass...
+              </span>
+            </div>
+            <div className="flex items-center justify-center space-x-2 text-white/90">
+              <div
+                className="w-2 h-2 bg-white rounded-full animate-pulse"
+                style={{ animationDelay: "1s" }}
+              ></div>
+              <span className="text-sm font-medium text-shadow-sm">
+                Preparing 3D visualization...
+              </span>
+            </div>
+          </div>
+
+          <p className="text-white/80 text-sm text-shadow-sm">
+            Preparing La Maddalena National Park monitoring system
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className="h-screen flex flex-col relative isolate"
@@ -456,7 +536,6 @@ export default function Home() {
         vesselCount={
           Array.isArray(enhancedVessels) ? enhancedVessels.length : 0
         }
-        vesselsInPark={vesselStats.vesselsInPark}
         vesselsInBuffer={vesselStats.vesselsInBuffer}
         onRefresh={refreshData}
         onClearTrack={clearVesselTrack}

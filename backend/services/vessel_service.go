@@ -79,14 +79,14 @@ func (s *VesselService) GetAllVessels(params map[string]string, maxResults int) 
 
 		allVessels = append(allVessels, response.Data...)
 
-		if response.Meta.Next == "" || len(allVessels) >= maxResults {
+		if response.Meta.Next == "" || (maxResults > 0 && len(allVessels) >= maxResults) {
 			break
 		}
 
 		nextToken = response.Meta.Next
 	}
 
-	if len(allVessels) > maxResults {
+	if maxResults > 0 && len(allVessels) > maxResults {
 		allVessels = allVessels[:maxResults]
 	}
 
@@ -102,7 +102,7 @@ func (s *VesselService) GetVesselsByArea(minLat, maxLat, minLon, maxLon float64)
 		"type": "Cargo,Tanker,Passenger,Fishing",
 	}
 
-	return s.GetAllVessels(params, 1000)
+	return s.GetAllVessels(params, 0) // No limit - return all vessels in area
 }
 
 func (s *VesselService) GetVesselsInRadius(lat, lon float64, radius int) (*models.VesselPositionResponse, error) {
