@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { MdAnchor } from "react-icons/md";
 
 interface MaritimeLoaderProps {
   message?: string;
@@ -52,7 +53,7 @@ export default function MaritimeLoader({
             animate={{ scale: [1, 1.2, 1] }}
             transition={{ duration: 2, repeat: Infinity }}
           >
-            ⚓
+            <MdAnchor />
           </motion.div>
         </motion.div>
 

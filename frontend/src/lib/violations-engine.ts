@@ -99,6 +99,13 @@ export class ViolationsEngine {
     );
     if (speedViolation) violations.push(speedViolation);
 
+    // Check buffer zone violations (which indicate proximity to shore)
+    const bufferViolation = this.checkBufferZoneViolation(
+      vesselPoint,
+      bufferedBoundaries
+    );
+    if (bufferViolation) violations.push(bufferViolation);
+
     // Check shore proximity if shoreline data available (only within park)
     if (shoreline) {
       const shoreViolation = this.checkShoreProximity(vesselPoint, shoreline);
@@ -116,6 +123,7 @@ export class ViolationsEngine {
             : prev
         )
       : undefined;
+
 
     return {
       vessel,
@@ -135,7 +143,9 @@ export class ViolationsEngine {
     vesselPoint: turf.Feature<turf.Point>,
     bufferedBoundaries: GeoJSON.FeatureCollection | null
   ): Violation | null {
-    if (!bufferedBoundaries || !bufferedBoundaries.features) return null;
+    if (!bufferedBoundaries || !bufferedBoundaries.features) {
+      return null;
+    }
 
     for (const feature of bufferedBoundaries.features) {
       if (
@@ -144,25 +154,24 @@ export class ViolationsEngine {
           feature.geometry.type === "MultiPolygon")
       ) {
         try {
-          if (
-            turf.booleanPointInPolygon(
-              vesselPoint,
-              feature as turf.Feature<turf.Polygon | turf.MultiPolygon>
-            )
-          ) {
+          // Create a proper turf feature from the geometry
+          const turfFeature = turf.feature(feature.geometry);
+          const isInBuffer = turf.booleanPointInPolygon(vesselPoint, turfFeature);
+
+          if (isInBuffer) {
             return {
               type: ViolationType.IN_BUFFER_ZONE,
               severity: ViolationSeverity.MEDIUM,
-              title: "Buffer Zone Violation",
-              description: `Vessel is within ${this.config.bufferZoneDistance}m buffer zone of protected area`,
-              icon: "shield",
+              title: "Too Close to Shore",
+              description: `Vessel is within ${this.config.bufferZoneDistance}m buffer zone - too close to protected shoreline`,
+              icon: "shore-warning",
               color: "#f59e0b",
               distance: this.config.bufferZoneDistance,
               timestamp: new Date(),
             };
           }
         } catch (error) {
-          console.debug("Buffer zone check failed:", error);
+          console.error("Buffer zone check failed:", error);
         }
       }
     }

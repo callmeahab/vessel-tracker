@@ -13,6 +13,8 @@ import ViolationsEngine, {
   type VesselViolations,
 } from "@/lib/violations-engine";
 import MaritimeLoader from "@/components/MaritimeLoader/MaritimeLoader";
+import { useViolationsWorker } from "@/hooks/useViolationsWorker";
+import ProcessingIndicator from "@/components/ProcessingIndicator/ProcessingIndicator";
 
 export default function Home() {
   const [vessels, setVessels] = useState<VesselData[]>([]);
@@ -73,7 +75,7 @@ export default function Home() {
           .then((data) => {
             if (data) {
               setBufferedBoundaries(data);
-              console.log("Buffered boundaries loaded");
+              console.log("Buffered boundaries loaded:", data.features?.length, "features");
             }
           })
           .catch((err) => console.error("Buffered error:", err));
@@ -125,19 +127,53 @@ export default function Home() {
     fetchPosidoniaData();
   }, [API_BASE_URL]);
 
-  // Initialize violations engine
+  // Initialize violations engine (fallback for non-worker environments)
   const violationsEngine = useMemo(() => new ViolationsEngine(), []);
+
+  // Initialize Web Worker for background processing
+  const {
+    processViolations,
+    violations: workerViolations,
+    isProcessing,
+    progress,
+    error: workerError,
+    clearError
+  } = useViolationsWorker();
 
   // Skip violations detection during initial load or if data is not ready
   const shouldDetectViolations = useMemo(() => {
     return !loading && vessels.length > 0 && parkBoundaries !== null;
   }, [loading, vessels.length, parkBoundaries]);
 
-  // Enhanced vessel data with violations detection - optimized
+  // Trigger Web Worker processing when data changes
+  useEffect(() => {
+    if (shouldDetectViolations && Array.isArray(vessels) && parkBoundaries) {
+      processViolations(
+        vessels,
+        parkBoundaries,
+        bufferedBoundaries,
+        posidoniaData,
+        null // shoreline data - can be added later
+      );
+    }
+  }, [
+    shouldDetectViolations,
+    vessels,
+    parkBoundaries,
+    bufferedBoundaries,
+    posidoniaData,
+    processViolations
+  ]);
+
+  // Use worker violations if available, otherwise use fallback
   const vesselViolations: VesselViolations[] = useMemo(() => {
+    if (workerViolations.length > 0) {
+      return workerViolations;
+    }
+
+    // Fallback for when worker is not available or hasn't processed yet
     if (!shouldDetectViolations || !Array.isArray(vessels)) return [];
 
-    // Only process violations if we have the necessary data
     if (!parkBoundaries)
       return vessels.map((v) => ({
         vessel: v,
@@ -146,16 +182,22 @@ export default function Home() {
         isWhitelisted: v.is_whitelisted || false,
       }));
 
-    return vessels.map((vessel) => {
-      return violationsEngine.detectViolations(
-        vessel,
-        parkBoundaries,
-        bufferedBoundaries,
-        posidoniaData,
-        null // shoreline data - can be added later
-      );
-    });
+    // Only use synchronous processing as fallback for small datasets
+    if (vessels.length <= 10) {
+      return vessels.map((vessel) => {
+        return violationsEngine.detectViolations(
+          vessel,
+          parkBoundaries,
+          bufferedBoundaries,
+          posidoniaData,
+          null
+        );
+      });
+    }
+
+    return [];
   }, [
+    workerViolations,
     shouldDetectViolations,
     vessels,
     violationsEngine,
@@ -176,6 +218,7 @@ export default function Home() {
         (v) => v.type === "anchored_on_posidonia"
       );
 
+
       // Simple park check based on existing violation data
       const isInPark =
         vv.violations.some(
@@ -191,7 +234,7 @@ export default function Home() {
         is_anchored_on_posidonia: hasPosidoniaViolation,
         violations: vv.violations || [],
         violationSeverity: vv.maxSeverity,
-        violationColor: violationsEngine.getVesselColor(vv),
+        violationColor: (vv as any).violationColor || violationsEngine.getVesselColor(vv),
       };
     });
   }, [vesselViolations, violationsEngine]);
@@ -504,6 +547,15 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* Processing indicator for background violation processing */}
+      <ProcessingIndicator
+        isProcessing={isProcessing}
+        progress={progress}
+        error={workerError}
+        onClearError={clearError}
+      />
+
       <Header
         vesselCount={
           Array.isArray(enhancedVessels) ? enhancedVessels.length : 0

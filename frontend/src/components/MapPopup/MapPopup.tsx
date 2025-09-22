@@ -240,14 +240,14 @@ export class MapPopupControl {
     switch (classification) {
       case "healthy":
         return {
-          icon: "🌿",
+          icon: "●",
           title: "Healthy Posidonia",
           subtitle: "🌊 THRIVING SEAGRASS",
           gradient: "rgba(16, 185, 129, 0.8), rgba(5, 150, 105, 0.7), rgba(4, 120, 87, 0.6)"
         };
       case "degraded":
         return {
-          icon: "⚠️",
+          icon: "⚠",
           title: "Degraded Posidonia",
           subtitle: "🚨 DAMAGED SEAGRASS",
           gradient: "rgba(245, 158, 11, 0.8), rgba(234, 88, 12, 0.7), rgba(194, 65, 12, 0.6)"
@@ -261,7 +261,7 @@ export class MapPopupControl {
         };
       default:
         return {
-          icon: "🌿",
+          icon: "●",
           title: "Posidonia Beds",
           subtitle: "🌊 PROTECTED SEAGRASS",
           gradient: "rgba(125, 211, 252, 0.8), rgba(14, 165, 233, 0.7), rgba(3, 105, 161, 0.6)"
@@ -285,7 +285,7 @@ export class MapPopupControl {
           ${condition !== "unknown" ? this.createDetailField("Condition:", this.formatCondition(condition), "normal", this.getConditionColor(condition)) : ""}
           ${substrate !== "unknown" ? this.createDetailField("Substrate:", this.formatSubstrate(substrate), "normal", "#8B9DC3") : ""}
           ${properties.description ? this.createDetailField("Details:", this.parsePosidoniaDescription(properties.description), "normal", undefined, "200px") : ""}
-          ${this.createDetailField("⚠️ Warning:", "Anchoring prohibited", "normal", "#ef4444")}
+          ${this.createDetailField("⚠ Warning:", "Anchoring prohibited", "normal", "#ef4444")}
           ${this.generateClassificationInfo(classification)}
         </div>
       </div>
@@ -500,14 +500,14 @@ export class MapPopupControl {
     // Course field (if available)
     if (properties.course !== null && properties.course !== undefined) {
       fields.push(
-        this.createDetailField("🧭 Course:", `${properties.course}°`)
+        this.createDetailField("↗ Course:", `${properties.course}°`)
       );
     }
 
     // Heading field (if available)
     if (properties.heading !== null && properties.heading !== undefined) {
       fields.push(
-        this.createDetailField("🎯 Heading:", `${properties.heading}°`)
+        this.createDetailField("→ Heading:", `${properties.heading}°`)
       );
     }
 
@@ -515,7 +515,7 @@ export class MapPopupControl {
     if (properties.destination) {
       fields.push(
         this.createDetailField(
-          "🏁 Destination:",
+          "📍 Destination:",
           properties.destination,
           "normal",
           undefined,
@@ -528,7 +528,7 @@ export class MapPopupControl {
     if (properties.distance !== null && properties.distance !== undefined) {
       fields.push(
         this.createDetailField(
-          "📏 Distance:",
+          "📐 Distance:",
           `${properties.distance.toFixed(1)} nm`,
           "normal",
           "#fbbf24"
@@ -542,7 +542,7 @@ export class MapPopupControl {
         properties.distanceToNearestPosidonia < 500) {
       const distance = properties.distanceToNearestPosidonia;
       const color = distance < 50 ? "#ef4444" : distance < 100 ? "#f59e0b" : "#10b981";
-      const icon = distance < 50 ? "⚠️" : distance < 100 ? "⚡" : "🌿";
+      const icon = distance < 50 ? "⚠" : distance < 100 ? "⚡" : "●";
 
       fields.push(
         this.createDetailField(
@@ -558,7 +558,7 @@ export class MapPopupControl {
     if (properties.isAnchoredOnPosidonia) {
       fields.push(
         this.createDetailField(
-          "🚫 Violation:",
+          "⛔ Violation:",
           "Anchored on seagrass",
           "normal",
           "#dc2626"
