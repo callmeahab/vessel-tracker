@@ -140,7 +140,7 @@ export class ViolationsEngine {
    * Check buffer zone violation
    */
   private checkBufferZoneViolation(
-    vesselPoint: turf.Feature<turf.Point>,
+    vesselPoint: GeoJSON.Feature<GeoJSON.Point>,
     bufferedBoundaries: GeoJSON.FeatureCollection | null
   ): Violation | null {
     if (!bufferedBoundaries || !bufferedBoundaries.features) {
@@ -182,7 +182,7 @@ export class ViolationsEngine {
    * Check posidonia-related violations
    */
   private checkPosidoniaViolations(
-    vesselPoint: turf.Feature<turf.Point>,
+    vesselPoint: GeoJSON.Feature<GeoJSON.Point>,
     speed: number,
     posidoniaData: GeoJSON.FeatureCollection | null
   ): Violation[] {
@@ -249,7 +249,7 @@ export class ViolationsEngine {
    * Check shore proximity
    */
   private checkShoreProximity(
-    vesselPoint: turf.Feature<turf.Point>,
+    vesselPoint: GeoJSON.Feature<GeoJSON.Point>,
     shoreline: GeoJSON.FeatureCollection
   ): Violation | null {
     let minDistance = Infinity;
@@ -259,7 +259,7 @@ export class ViolationsEngine {
           feature.geometry.type === "MultiLineString") {
         const distance = turf.pointToLineDistance(
           vesselPoint,
-          feature as turf.Feature<turf.LineString | turf.MultiLineString>,
+          feature as GeoJSON.Feature<GeoJSON.LineString>,
           { units: "meters" }
         );
         minDistance = Math.min(minDistance, distance);

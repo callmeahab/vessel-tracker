@@ -39,7 +39,7 @@ export function useViolationsWorker(): UseViolationsWorkerReturn {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        workerRef.current = new Worker('/workers/violations-worker.js');
+        workerRef.current = new Worker('/static/workers/violations-worker.js');
 
         workerRef.current.onmessage = (e) => {
           const { type, data } = e.data;

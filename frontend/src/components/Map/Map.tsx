@@ -227,7 +227,7 @@ export default function MapComponent({
   // Load posidonia data
   useEffect(() => {
     const API_BASE_URL =
-      process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+      process.env.NEXT_PUBLIC_API_BASE_URL || "";
     fetch(`${API_BASE_URL}/api/posidonia`)
       .then((res) => {
         if (!res.ok) {

@@ -234,7 +234,7 @@ export default function Home() {
         is_anchored_on_posidonia: hasPosidoniaViolation,
         violations: vv.violations || [],
         violationSeverity: vv.maxSeverity,
-        violationColor: (vv as any).violationColor || violationsEngine.getVesselColor(vv),
+        violationColor: (vv as VesselViolations & { violationColor?: string }).violationColor || violationsEngine.getVesselColor(vv),
       };
     });
   }, [vesselViolations, violationsEngine]);

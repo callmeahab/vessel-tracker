@@ -33,7 +33,7 @@ func main() {
 
 	// Initialize services
 	vesselService := services.NewVesselService(apiKey)
-	geoService, err := services.NewGeoService("../data/national-park.geojson", "../data/buffered.geojson")
+	geoService, err := services.NewGeoService("./data/national-park.geojson", "./data/buffered.geojson")
 	if err != nil {
 		log.Fatalf("Failed to initialize geo service: %v", err)
 	}
@@ -73,6 +73,11 @@ func main() {
 	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept"}
 	r.Use(cors.New(config))
 
+	// Serve static files (Frontend)
+	r.Static("/static", "./static")
+	r.StaticFile("/", "./static/index.html")
+	r.StaticFile("/favicon.ico", "./static/favicon.ico")
+
 	vesselHandler := handlers.NewVesselHandler(vesselService, geoService, vesselRepo, whitelistService)
 	whitelistHandler := handlers.NewWhitelistHandler(whitelistService)
 	violationHandler := handlers.NewViolationHandler(vesselService, geoService, vesselRepo)
@@ -105,6 +110,11 @@ func main() {
 			c.JSON(200, gin.H{"status": "healthy"})
 		})
 	}
+
+	// Serve index.html for all non-API routes (SPA fallback)
+	r.NoRoute(func(c *gin.Context) {
+		c.File("./static/index.html")
+	})
 
 	port := os.Getenv("PORT")
 	if port == "" {

@@ -267,7 +267,7 @@ func parseCoordinates(coordString string) [][]float64 {
 }
 
 func LoadPosidoniaData() (*GeoJSON, error) {
-	kmzPath := filepath.Join("..", "data", "posidonia-maddalena.kmz")
+	kmzPath := filepath.Join(".", "data", "posidonia-maddalena.kmz")
 
 	if _, err := os.Stat(kmzPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("posidonia KMZ file not found at %s", kmzPath)
