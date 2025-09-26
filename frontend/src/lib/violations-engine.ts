@@ -93,10 +93,7 @@ export class ViolationsEngine {
     violations.push(...posidoniaViolations);
 
     // Check speed violations in park (all vessels are now within park)
-    const speedViolation = this.checkSpeedViolation(
-      vessel.vessel.speed || 0,
-      true
-    );
+    const speedViolation = this.checkSpeedViolation(vessel.vessel.speed || 0);
     if (speedViolation) violations.push(speedViolation);
 
     // Check buffer zone violations (which indicate proximity to shore)
@@ -116,14 +113,15 @@ export class ViolationsEngine {
     const maxSeverity = this.getMaxSeverity(violations);
 
     // Get primary violation (most severe)
-    const primaryViolation = violations.length > 0
-      ? violations.reduce((prev, curr) =>
-          this.getSeverityLevel(curr.severity) > this.getSeverityLevel(prev.severity)
-            ? curr
-            : prev
-        )
-      : undefined;
-
+    const primaryViolation =
+      violations.length > 0
+        ? violations.reduce((prev, curr) =>
+            this.getSeverityLevel(curr.severity) >
+            this.getSeverityLevel(prev.severity)
+              ? curr
+              : prev
+          )
+        : undefined;
 
     return {
       vessel,
@@ -156,7 +154,10 @@ export class ViolationsEngine {
         try {
           // Create a proper turf feature from the geometry
           const turfFeature = turf.feature(feature.geometry);
-          const isInBuffer = turf.booleanPointInPolygon(vesselPoint, turfFeature);
+          const isInBuffer = turf.booleanPointInPolygon(
+            vesselPoint,
+            turfFeature
+          );
 
           if (isInBuffer) {
             return {
@@ -214,7 +215,7 @@ export class ViolationsEngine {
             break;
           }
         } catch (error) {
-          console.debug("Posidonia check failed:", error);
+          // Posidonia check failed, continue to next feature
           continue;
         }
       }
@@ -226,10 +227,7 @@ export class ViolationsEngine {
   /**
    * Check speed violations
    */
-  private checkSpeedViolation(
-    speed: number,
-    isInPark: boolean
-  ): Violation | null {
+  private checkSpeedViolation(speed: number): Violation | null {
     if (speed <= this.config.speedLimitInPark) return null;
 
     return {
@@ -255,8 +253,10 @@ export class ViolationsEngine {
     let minDistance = Infinity;
 
     for (const feature of shoreline.features) {
-      if (feature.geometry.type === "LineString" ||
-          feature.geometry.type === "MultiLineString") {
+      if (
+        feature.geometry.type === "LineString" ||
+        feature.geometry.type === "MultiLineString"
+      ) {
         const distance = turf.pointToLineDistance(
           vesselPoint,
           feature as GeoJSON.Feature<GeoJSON.LineString>,
@@ -288,7 +288,9 @@ export class ViolationsEngine {
   private getMaxSeverity(violations: Violation[]): ViolationSeverity {
     if (violations.length === 0) return ViolationSeverity.LOW;
 
-    const severityLevels = violations.map(v => this.getSeverityLevel(v.severity));
+    const severityLevels = violations.map((v) =>
+      this.getSeverityLevel(v.severity)
+    );
     const maxLevel = Math.max(...severityLevels);
 
     return this.getSeverityFromLevel(maxLevel);
@@ -299,11 +301,16 @@ export class ViolationsEngine {
    */
   private getSeverityLevel(severity: ViolationSeverity): number {
     switch (severity) {
-      case ViolationSeverity.LOW: return 1;
-      case ViolationSeverity.MEDIUM: return 2;
-      case ViolationSeverity.HIGH: return 3;
-      case ViolationSeverity.CRITICAL: return 4;
-      default: return 0;
+      case ViolationSeverity.LOW:
+        return 1;
+      case ViolationSeverity.MEDIUM:
+        return 2;
+      case ViolationSeverity.HIGH:
+        return 3;
+      case ViolationSeverity.CRITICAL:
+        return 4;
+      default:
+        return 0;
     }
   }
 
@@ -312,11 +319,16 @@ export class ViolationsEngine {
    */
   private getSeverityFromLevel(level: number): ViolationSeverity {
     switch (level) {
-      case 1: return ViolationSeverity.LOW;
-      case 2: return ViolationSeverity.MEDIUM;
-      case 3: return ViolationSeverity.HIGH;
-      case 4: return ViolationSeverity.CRITICAL;
-      default: return ViolationSeverity.LOW;
+      case 1:
+        return ViolationSeverity.LOW;
+      case 2:
+        return ViolationSeverity.MEDIUM;
+      case 3:
+        return ViolationSeverity.HIGH;
+      case 4:
+        return ViolationSeverity.CRITICAL;
+      default:
+        return ViolationSeverity.LOW;
     }
   }
 
@@ -327,11 +339,16 @@ export class ViolationsEngine {
     if (violations.violations.length === 0) return "#86efac"; // Turquoise/seafoam
 
     switch (violations.maxSeverity) {
-      case ViolationSeverity.CRITICAL: return "#dc2626"; // Red
-      case ViolationSeverity.HIGH: return "#ef4444"; // Light red
-      case ViolationSeverity.MEDIUM: return "#f59e0b"; // Coral/amber
-      case ViolationSeverity.LOW: return "#10b981"; // Seagrass green
-      default: return "#86efac";
+      case ViolationSeverity.CRITICAL:
+        return "#dc2626"; // Red
+      case ViolationSeverity.HIGH:
+        return "#ef4444"; // Light red
+      case ViolationSeverity.MEDIUM:
+        return "#f59e0b"; // Coral/amber
+      case ViolationSeverity.LOW:
+        return "#10b981"; // Seagrass green
+      default:
+        return "#86efac";
     }
   }
 

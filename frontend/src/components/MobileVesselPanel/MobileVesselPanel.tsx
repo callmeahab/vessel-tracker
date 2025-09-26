@@ -74,12 +74,12 @@ export default function MobileVesselPanel({
           <motion.div
             initial={{
               y: isMobile ? "100%" : 0,
-              x: isMobile ? 0 : "100%"
+              x: isMobile ? 0 : "100%",
             }}
             animate={{ y: 0, x: 0 }}
             exit={{
               y: isMobile ? "100%" : 0,
-              x: isMobile ? 0 : "100%"
+              x: isMobile ? 0 : "100%",
             }}
             transition={{
               type: "spring",
@@ -147,32 +147,41 @@ export default function MobileVesselPanel({
                     </h4>
                   </div>
                   <div className="space-y-2">
-                    {violations?.map((violation: any, index: number) => (
-                      <div
-                        key={index}
-                        className="bg-white rounded-lg p-3 border border-red-100"
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <div
-                            className={`w-2 h-2 rounded-full ${
-                              violation.severity === "critical"
-                                ? "bg-red-500"
-                                : violation.severity === "high"
-                                ? "bg-orange-500"
-                                : violation.severity === "medium"
-                                ? "bg-yellow-500"
-                                : "bg-green-500"
-                            }`}
-                          ></div>
-                          <span className="font-medium text-sm text-gray-900 capitalize">
-                            {violation.type?.replace(/_/g, " ")}
-                          </span>
+                    {violations?.map(
+                      (
+                        violation: {
+                          severity: string;
+                          type: string;
+                          description: string;
+                        },
+                        index: number
+                      ) => (
+                        <div
+                          key={index}
+                          className="bg-white rounded-lg p-3 border border-red-100"
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <div
+                              className={`w-2 h-2 rounded-full ${
+                                violation.severity === "critical"
+                                  ? "bg-red-500"
+                                  : violation.severity === "high"
+                                  ? "bg-orange-500"
+                                  : violation.severity === "medium"
+                                  ? "bg-yellow-500"
+                                  : "bg-green-500"
+                              }`}
+                            ></div>
+                            <span className="font-medium text-sm text-gray-900 capitalize">
+                              {violation.type?.replace(/_/g, " ")}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-600">
+                            {violation.description}
+                          </p>
                         </div>
-                        <p className="text-xs text-gray-600">
-                          {violation.description}
-                        </p>
-                      </div>
-                    ))}
+                      )
+                    )}
                   </div>
                 </div>
               ) : (
@@ -278,38 +287,39 @@ export default function MobileVesselPanel({
                 )}
 
               {/* Action Buttons */}
-              {(vessel.uuid || vessel.mmsi) && (onShowPreviousPositions || onTrackVessel) && (
-                <div className="flex gap-3 pt-4">
-                  {onShowPreviousPositions && (
-                    <button
-                      onClick={() => {
-                        const vesselId = vessel.uuid || vessel.mmsi;
-                        const vesselName = vessel.name || "Unknown Vessel";
-                        onShowPreviousPositions(vesselId, vesselName);
-                        onClose();
-                      }}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2"
-                    >
-                      <MdLocationOn className="text-base" />
-                      Previous Positions
-                    </button>
-                  )}
-                  {onTrackVessel && (
-                    <button
-                      onClick={() => {
-                        const vesselId = vessel.uuid || vessel.mmsi;
-                        const vesselName = vessel.name || "Unknown Vessel";
-                        onTrackVessel(vesselId, vesselName);
-                        onClose();
-                      }}
-                      className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2"
-                    >
-                      <MdRadar className="text-base" />
-                      Track Vessel
-                    </button>
-                  )}
-                </div>
-              )}
+              {(vessel.uuid || vessel.mmsi) &&
+                (onShowPreviousPositions || onTrackVessel) && (
+                  <div className="flex gap-3 pt-4">
+                    {onShowPreviousPositions && (
+                      <button
+                        onClick={() => {
+                          const vesselId = vessel.uuid || vessel.mmsi;
+                          const vesselName = vessel.name || "Unknown Vessel";
+                          onShowPreviousPositions(vesselId, vesselName);
+                          onClose();
+                        }}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2"
+                      >
+                        <MdLocationOn className="text-base" />
+                        Previous Positions
+                      </button>
+                    )}
+                    {onTrackVessel && (
+                      <button
+                        onClick={() => {
+                          const vesselId = vessel.uuid || vessel.mmsi;
+                          const vesselName = vessel.name || "Unknown Vessel";
+                          onTrackVessel(vesselId, vesselName);
+                          onClose();
+                        }}
+                        className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2"
+                      >
+                        <MdRadar className="text-base" />
+                        Track Vessel
+                      </button>
+                    )}
+                  </div>
+                )}
 
               {vessel.timestamp && (
                 <div className="text-center pt-2 border-t border-gray-200">

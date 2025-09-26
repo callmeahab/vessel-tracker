@@ -19,7 +19,7 @@ export interface VesselProperties {
   destination?: string;
   distance?: number;
   timestamp?: string;
-  violations?: any[];
+  violations?: Array<{ severity: string; type: string; description: string }>;
   violationSeverity?: string;
 }
 
@@ -31,6 +31,14 @@ export interface PosidoniaProperties {
   substrate?: string;
   classification?: string;
   [key: string]: string | number | boolean | undefined;
+}
+
+export interface VesselPositionProperties {
+  timestamp: string;
+  speed?: number;
+  is_start?: boolean;
+  is_end?: boolean;
+  vesselName: string;
 }
 
 export class MapPopupControl {
@@ -80,43 +88,11 @@ export class MapPopupControl {
   /**
    * Closes the currently open popup if any
    */
-  static closeVesselPopup(): void {
+  static closePopup(): void {
     if (this.currentPopup) {
       this.currentPopup.remove();
       this.currentPopup = undefined;
     }
-  }
-
-  /**
-   * Creates and displays a vessel popup with vessel details
-   */
-  static createVesselPopup(
-    map: mapboxgl.Map,
-    coordinates: [number, number],
-    properties: VesselProperties
-  ): mapboxgl.Popup {
-    const popupContent = this.generateVesselPopupHTML(properties);
-
-    // Close any existing popup before opening a new one
-    this.closeVesselPopup();
-
-    const popup = new mapboxgl.Popup({
-      closeButton: true,
-      closeOnClick: false,
-      className: "glassmorphic-popup",
-    })
-      .setLngLat(coordinates)
-      .setHTML(popupContent)
-      .addTo(map);
-
-    this.currentPopup = popup;
-    popup.on("close", () => {
-      if (this.currentPopup === popup) {
-        this.currentPopup = undefined;
-      }
-    });
-
-    return popup;
   }
 
   /**
@@ -130,7 +106,7 @@ export class MapPopupControl {
     const popupContent = this.generatePosidoniaPopupHTML(properties);
 
     // Close any existing popup before opening a new one
-    this.closeVesselPopup();
+    this.closePopup();
 
     const popup = new mapboxgl.Popup({
       closeButton: true,
@@ -152,29 +128,35 @@ export class MapPopupControl {
   }
 
   /**
-   * Generates the HTML content for the vessel popup
+   * Creates and displays a vessel previous position popup with details
    */
-  private static generateVesselPopupHTML(properties: VesselProperties): string {
-    return `
-      <div style="
-        width: 280px;
-        max-width: 90vw;
-        max-height: 500px;
-        font-family: 'Inter', system-ui, -apple-system, sans-serif;
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        background: linear-gradient(135deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0.2));
-        border-radius: 16px;
-        overflow: hidden;
-        box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        display: flex;
-        flex-direction: column;
-      ">
-        ${this.generateVesselPopupHeader(properties)}
-        ${this.generateVesselPopupBodyWithViolations(properties)}
-      </div>
-    `;
+  static createVesselPositionPopup(
+    map: mapboxgl.Map,
+    coordinates: [number, number],
+    properties: VesselPositionProperties
+  ): mapboxgl.Popup {
+    const popupContent = this.generateVesselPositionPopupHTML(properties);
+
+    // Close any existing popup before opening a new one
+    this.closePopup();
+
+    const popup = new mapboxgl.Popup({
+      closeButton: true,
+      closeOnClick: false,
+      className: "glassmorphic-popup",
+    })
+      .setLngLat(coordinates)
+      .setHTML(popupContent)
+      .addTo(map);
+
+    this.currentPopup = popup;
+    popup.on("close", () => {
+      if (this.currentPopup === popup) {
+        this.currentPopup = undefined;
+      }
+    });
+
+    return popup;
   }
 
   /**
@@ -206,55 +188,12 @@ export class MapPopupControl {
   }
 
   /**
-   * Generates the header section of the vessel popup
-   */
-  private static generateVesselPopupHeader(
-    properties: VesselProperties
-  ): string {
-    return `
-      <div style="
-        background: linear-gradient(135deg, ${
-          properties.isInPark
-            ? "rgba(245, 158, 11, 0.8), rgba(234, 88, 12, 0.7), rgba(194, 65, 12, 0.6)"
-            : "rgba(14, 165, 233, 0.8), rgba(3, 105, 161, 0.7), rgba(30, 58, 138, 0.6)"
-        });
-        color: rgba(0, 0, 0, 0.9);
-        padding: 12px 16px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-      ">
-        <div style="
-          font-family: 'Inter', system-ui, sans-serif;
-          font-size: 12px;
-          font-weight: 700;
-          margin-bottom: 4px;
-          margin-right: 20px;
-          line-height: 1.2;
-          letter-spacing: 0.03em;
-          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-        ">${properties.name || "Unknown Vessel"}</div>
-        <div style="
-          font-family: 'Inter', system-ui, sans-serif;
-          font-size: 10px;
-          opacity: 0.9;
-          text-transform: uppercase;
-          font-weight: 600;
-          letter-spacing: 0.5px;
-          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-        ">${properties.isInPark ? `INSIDE PARK` : `NEARBY`}</div>
-      </div>
-    `;
-  }
-
-  /**
    * Generates the posidonia popup header
    */
   private static generatePosidoniaPopupHeader(
     properties: PosidoniaProperties
   ): string {
     const classification = properties.classification || "standard";
-    const condition = properties.condition || "unknown";
 
     // Determine header colors and icons based on classification
     const headerConfig = this.getPosidoniaHeaderConfig(classification);
@@ -582,180 +521,6 @@ export class MapPopupControl {
   }
 
   /**
-   * Generates the body section of the popup with vessel details and violations (scrollable)
-   */
-  private static generateVesselPopupBodyWithViolations(properties: VesselProperties): string {
-    const fields = this.buildDetailFields(properties);
-
-    return `
-      <div style="
-        overflow-y: auto;
-        flex: 1;
-        min-height: 0;
-      ">
-        ${this.generateViolationsSection(properties)}
-        <div style="padding: 14px 16px;">
-          <div style="display: grid; gap: 8px;">
-            ${fields.join("")}
-            ${this.generateTimestamp(properties.timestamp)}
-          </div>
-        </div>
-        ${this.generateActionButtons(properties)}
-      </div>
-    `;
-  }
-
-  /**
-   * Generates the body section of the popup with vessel details
-   */
-  private static generateVesselPopupBody(properties: VesselProperties): string {
-    const fields = this.buildDetailFields(properties);
-
-    return `
-      <div style="
-        padding: 14px 16px;
-        overflow-y: auto;
-        flex: 1;
-        min-height: 0;
-      ">
-        <div style="display: grid; gap: 8px;">
-          ${fields.join("")}
-          ${this.generateTimestamp(properties.timestamp)}
-        </div>
-        ${this.generateActionButtons(properties)}
-      </div>
-    `;
-  }
-
-  /**
-   * Builds an array of detail field HTML strings
-   */
-  private static buildDetailFields(properties: VesselProperties): string[] {
-    const fields: string[] = [];
-
-    // Type field
-    const typeText = properties.type || "Unknown";
-    const typeSpecificText = properties.typeSpecific
-      ? ` (${properties.typeSpecific})`
-      : "";
-    fields.push(
-      this.createDetailField("Type:", `${typeText}${typeSpecificText}`)
-    );
-
-    // MMSI field
-    fields.push(
-      this.createDetailField("MMSI:", properties.mmsi || "N/A", "monospace")
-    );
-
-    // IMO field (if available)
-    if (properties.imo) {
-      fields.push(this.createDetailField("IMO:", properties.imo, "monospace"));
-    }
-
-    // Country field (if available)
-    if (properties.countryIso) {
-      fields.push(this.createDetailField("Flag:", properties.countryIso));
-    }
-
-    // Speed field (if available)
-    if (properties.speed !== null && properties.speed !== undefined) {
-      fields.push(
-        this.createDetailField(
-          `${this.md("bolt", 12)} Speed:`,
-          `${properties.speed} knots`,
-          "normal",
-          "#059669"
-        )
-      );
-    }
-
-    // Course field (if available)
-    if (properties.course !== null && properties.course !== undefined) {
-      fields.push(
-        this.createDetailField(
-          `${this.md("navigation", 12)} Course:`,
-          `${properties.course}°`
-        )
-      );
-    }
-
-    // Heading field (if available)
-    if (properties.heading !== null && properties.heading !== undefined) {
-      fields.push(
-        this.createDetailField(
-          `${this.md("arrow_forward", 12)} Heading:`,
-          `${properties.heading}°`
-        )
-      );
-    }
-
-    // Destination field (if available)
-    if (properties.destination) {
-      fields.push(
-        this.createDetailField(
-          `${this.md("flag", 12)} Destination:`,
-          properties.destination,
-          "normal",
-          undefined,
-          "140px"
-        )
-      );
-    }
-
-    // Distance field (if available)
-    if (properties.distance !== null && properties.distance !== undefined) {
-      fields.push(
-        this.createDetailField(
-          `${this.md("straighten", 12)} Distance:`,
-          `${properties.distance.toFixed(1)} nm`,
-          "normal",
-          "#fbbf24"
-        )
-      );
-    }
-
-    // Posidonia distance (if vessel is near posidonia beds)
-    if (
-      properties.distanceToNearestPosidonia !== null &&
-      properties.distanceToNearestPosidonia !== undefined &&
-      properties.distanceToNearestPosidonia < 500
-    ) {
-      const distance = properties.distanceToNearestPosidonia;
-      const color =
-        distance < 50 ? "#ef4444" : distance < 100 ? "#f59e0b" : "#10b981";
-      const icon =
-        distance < 50
-          ? this.md("warning", 12)
-          : distance < 100
-          ? this.md("bolt", 12)
-          : this.md("check_circle", 12);
-
-      fields.push(
-        this.createDetailField(
-          `${icon} Posidonia:`,
-          `${distance.toFixed(0)}m away`,
-          "normal",
-          color
-        )
-      );
-    }
-
-    // Anchoring warning (if over posidonia)
-    if (properties.isAnchoredOnPosidonia) {
-      fields.push(
-        this.createDetailField(
-          `${this.md("block", 12)} Violation:`,
-          "Anchored on seagrass",
-          "normal",
-          "#dc2626"
-        )
-      );
-    }
-
-    return fields;
-  }
-
-  /**
    * Creates a detail field HTML string
    */
   private static createDetailField(
@@ -795,277 +560,210 @@ export class MapPopupControl {
   }
 
   /**
-   * Generates the timestamp section if available
+   * Generates the HTML content for the vessel position popup
    */
-  private static generateTimestamp(timestamp?: string): string {
-    if (!timestamp) return "";
+  private static generateVesselPositionPopupHTML(
+    properties: VesselPositionProperties
+  ): string {
+    const positionType = properties.is_start
+      ? "oldest"
+      : properties.is_end
+      ? "latest"
+      : "previous";
+
+    const headerConfig = this.getVesselPositionHeaderConfig(positionType);
+
+    return `
+      <div style="
+        width: 280px;
+        max-width: 90vw;
+        max-height: 500px;
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0.2));
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        display: flex;
+        flex-direction: column;
+      ">
+        ${this.generateVesselPositionHeader(properties, headerConfig)}
+        ${this.generateVesselPositionBody(properties, headerConfig)}
+      </div>
+    `;
+  }
+
+  /**
+   * Generates the vessel position popup header
+   */
+  private static generateVesselPositionHeader(
+    properties: VesselPositionProperties,
+    headerConfig: { subtitle: string; gradient: string }
+  ): string {
+    return `
+      <div style="
+        background: linear-gradient(135deg, ${headerConfig.gradient});
+        color: rgba(0, 0, 0, 0.9);
+        padding: 12px 16px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+      ">
+        <div style="
+          font-family: 'Inter', system-ui, sans-serif;
+          font-size: 12px;
+          font-weight: 700;
+          margin-bottom: 4px;
+          margin-right: 20px;
+          line-height: 1.2;
+          letter-spacing: 0.03em;
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        ">${properties.vesselName}</div>
+        <div style="
+          font-family: 'Inter', system-ui, sans-serif;
+          font-size: 10px;
+          opacity: 0.9;
+          text-transform: uppercase;
+          font-weight: 600;
+          letter-spacing: 0.5px;
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        ">${headerConfig.subtitle}</div>
+      </div>
+    `;
+  }
+
+  /**
+   * Generates the vessel position popup body
+   */
+  private static generateVesselPositionBody(
+    properties: VesselPositionProperties,
+    headerConfig: { typeLabel: string; typeColor: string }
+  ): string {
+    const formattedTime = new Date(properties.timestamp).toLocaleString();
+
+    return `
+      <div style="
+        padding: 14px 16px;
+        overflow-y: auto;
+        flex: 1;
+        min-height: 0;
+      ">
+        <div style="display: grid; gap: 8px;">
+          ${this.createDetailField(
+            `${this.md("schedule", 12)} Time:`,
+            formattedTime,
+            "normal",
+            "#6366f1"
+          )}
+          ${properties.speed ? this.createDetailField(
+            `${this.md("navigation", 12)} Speed:`,
+            `${properties.speed} knots`,
+            "normal",
+            "#059669"
+          ) : ''}
+          ${this.createDetailField(
+            `${this.md("flag", 12)} Position Type:`,
+            headerConfig.typeLabel,
+            "normal",
+            headerConfig.typeColor
+          )}
+          ${this.generatePositionInfo(properties)}
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Gets header configuration for vessel position type
+   */
+  private static getVesselPositionHeaderConfig(positionType: string) {
+    switch (positionType) {
+      case "oldest":
+        return {
+          subtitle: "EARLIEST POSITION",
+          gradient: "rgba(16, 185, 129, 0.8), rgba(5, 150, 105, 0.7), rgba(4, 120, 87, 0.6)",
+          typeLabel: "Start of Track",
+          typeColor: "#10b981"
+        };
+      case "latest":
+        return {
+          subtitle: "MOST RECENT POSITION",
+          gradient: "rgba(239, 68, 68, 0.8), rgba(220, 38, 38, 0.7), rgba(185, 28, 28, 0.6)",
+          typeLabel: "End of Track",
+          typeColor: "#ef4444"
+        };
+      default:
+        return {
+          subtitle: "HISTORICAL POSITION",
+          gradient: "rgba(59, 130, 246, 0.8), rgba(37, 99, 235, 0.7), rgba(29, 78, 216, 0.6)",
+          typeLabel: "Track Point",
+          typeColor: "#3b82f6"
+        };
+    }
+  }
+
+  /**
+   * Generates position-specific information
+   */
+  private static generatePositionInfo(properties: VesselPositionProperties): string {
+    const positionType = properties.is_start
+      ? "oldest"
+      : properties.is_end
+      ? "latest"
+      : "previous";
+
+    const config = this.getPositionInfoConfig(positionType);
 
     return `
       <div style="
         margin-top: 12px;
-        padding-top: 12px;
-        border-top: 1px solid rgba(0, 0, 0, 0.2);
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      ">
-  <span style="color: rgba(0, 0, 0, 0.6); font-size: 11px;">${this.md(
-    "schedule",
-    12
-  )}</span>
-        <span style="font-family: 'Inter', system-ui, sans-serif; color: rgba(0, 0, 0, 0.5); font-size: 11px; text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3);">${new Date(
-          timestamp
-        ).toLocaleString()}</span>
-      </div>
-    `;
-  }
-
-  /**
-   * Sets up click event handlers for vessel markers
-   */
-  static setupVesselClickHandlers(map: mapboxgl.Map): void {
-    // Add click event listener for vessel details
-    map.on("click", "vessels-circle", (e) => {
-      if (e.features && e.features.length > 0) {
-        const feature = e.features[0];
-        const properties = feature.properties;
-
-        if (!properties) return;
-
-        const coordinates = (feature.geometry as GeoJSON.Point).coordinates;
-        this.createVesselPopup(
-          map,
-          [coordinates[0], coordinates[1]],
-          properties as VesselProperties
-        );
-      }
-    });
-
-    // Change cursor on hover
-    map.on("mouseenter", "vessels-circle", () => {
-      map.getCanvas().style.cursor = "pointer";
-    });
-
-    map.on("mouseleave", "vessels-circle", () => {
-      map.getCanvas().style.cursor = "";
-    });
-  }
-
-  /**
-   * Generates violations section for vessel popup
-   */
-  private static generateViolationsSection(
-    properties: VesselProperties
-  ): string {
-    // Handle violations that might be stringified by MapBox
-    let violations = properties.violations;
-
-    if (typeof violations === "string") {
-      try {
-        violations = JSON.parse(violations);
-      } catch (e) {
-        violations = [];
-      }
-    }
-
-    if (!violations || !Array.isArray(violations) || violations.length === 0) {
-      return `
-        <div style="
-          padding: 12px 16px;
-          background: linear-gradient(135deg, rgba(16, 185, 129, 0.8), rgba(5, 150, 105, 0.7), rgba(16, 185, 129, 0.65));
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-          border-radius: 8px;
-          margin: 8px 16px;
-          margin-bottom: 12px;
-        ">
-          <div style="
-            font-size: 12px;
-            color: white;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
-          ">
-            ${this.md("check", 14)}
-            No Violations Detected
-          </div>
-        </div>
-      `;
-    }
-
-    const violationItems = violations
-      .map((violation) => {
-        const severityColors = {
-          critical: "#dc2626",
-          high: "#ea580c",
-          medium: "#d97706",
-          low: "#059669",
-        };
-
-        const severityIcons = {
-          critical: this.md("warning", 12),
-          high: this.md("priority_high", 12),
-          medium: this.md("info", 12),
-          low: this.md("check_circle", 12),
-        } as const;
-
-        type SeverityKey = keyof typeof severityColors; // "critical" | "high" | "medium" | "low"
-        const sev: unknown = (violation as any)?.severity;
-        const sevKey: SeverityKey | undefined =
-          sev === "critical" ||
-          sev === "high" ||
-          sev === "medium" ||
-          sev === "low"
-            ? (sev as SeverityKey)
-            : undefined;
-
-        const color = sevKey ? severityColors[sevKey] : "#6b7280";
-        // Use a default Material-style warning icon (inline SVG) instead of emoji fallback
-        const defaultIcon =
-          '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M1 21h22L12 2 1 21zm12-3h-2v2h2v-2zm0-8h-2v6h2V10z"/></svg>';
-        const icon = sevKey ? severityIcons[sevKey] : defaultIcon;
-
-        return `
-        <div style="
-          display: flex;
-          align-items: flex-start;
-          gap: 8px;
-          margin-bottom: 8px;
-          padding: 8px;
-          background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.15), rgba(16, 185, 129, 0.1));
-          backdrop-filter: blur(5px);
-          -webkit-backdrop-filter: blur(5px);
-          border-radius: 6px;
-          border-left: 3px solid ${color};
-          border: 1px solid rgba(255, 255, 255, 0.1);
-        ">
-          <div style="color: ${color}; flex-shrink: 0;">${icon}</div>
-          <div style="flex: 1; min-width: 0;">
-            <div style="
-              font-size: 11px;
-              font-weight: 600;
-              color: white;
-              text-transform: uppercase;
-              letter-spacing: 0.5px;
-              margin-bottom: 2px;
-              text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
-            ">${String((violation as any)?.type || "violation").replace(
-              /_/g,
-              " "
-            )}</div>
-            <div style="
-              font-size: 10px;
-              color: rgba(255, 255, 255, 0.9);
-              line-height: 1.3;
-              text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
-            ">${String((violation as any)?.description || "")}</div>
-          </div>
-        </div>
-      `;
-      })
-      .join("");
-
-    return `
-      <div style="
-        padding: 12px 16px;
-        background: linear-gradient(135deg, rgba(239, 68, 68, 0.8), rgba(220, 38, 38, 0.7), rgba(185, 28, 28, 0.6));
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        padding: 12px;
+        background: ${config.background};
         border-radius: 8px;
-        margin: 8px 16px;
-        margin-bottom: 12px;
+        border-left: 4px solid ${config.borderColor};
       ">
         <div style="
+          font-family: 'Inter', system-ui, sans-serif;
           font-size: 12px;
-          color: white;
-          font-weight: 600;
-          margin-bottom: 8px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+          color: rgba(0, 0, 0, 0.8);
+          line-height: 1.4;
         ">
-          ${this.md("warning", 14)}
-          Violations (${violations.length})
+          <strong>${config.title}:</strong><br>
+          ${config.description}
         </div>
-        ${violationItems}
       </div>
     `;
   }
 
   /**
-   * Generates action buttons section for Previous Positions and Track Vessel
+   * Gets configuration for position info box
    */
-  private static generateActionButtons(properties: VesselProperties): string {
-    const mmsi = properties.mmsi || 'unknown';
-    const vesselName = properties.vesselName || 'Unknown Vessel';
-
-    return `
-      <div style="
-        padding: 16px;
-        margin-top: 8px;
-        border-top: 1px solid rgba(0, 0, 0, 0.1);
-      ">
-        <div style="
-          display: flex;
-          gap: 12px;
-          flex-direction: row;
-        ">
-          <button
-            id="prev-positions-btn-${mmsi}"
-            style="
-              flex: 1;
-              padding: 8px 16px;
-              background: linear-gradient(135deg, #2563eb, #1d4ed8);
-              color: white;
-              border: none;
-              border-radius: 8px;
-              font-size: 14px;
-              font-weight: 500;
-              cursor: pointer;
-              transition: all 0.2s ease;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            "
-            onmouseover="this.style.background='linear-gradient(135deg, #1d4ed8, #1e40af)'"
-            onmouseout="this.style.background='linear-gradient(135deg, #2563eb, #1d4ed8)'"
-            onclick="window.handleMapPopupPreviousPositions && window.handleMapPopupPreviousPositions('${mmsi}', '${vesselName.replace(/'/g, "\\'")}')">
-            Previous Positions
-          </button>
-          <button
-            id="track-vessel-btn-${mmsi}"
-            style="
-              flex: 1;
-              padding: 8px 16px;
-              background: linear-gradient(135deg, #dc2626, #b91c1c);
-              color: white;
-              border: none;
-              border-radius: 8px;
-              font-size: 14px;
-              font-weight: 500;
-              cursor: pointer;
-              transition: all 0.2s ease;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            "
-            onmouseover="this.style.background='linear-gradient(135deg, #b91c1c, #991b1b)'"
-            onmouseout="this.style.background='linear-gradient(135deg, #dc2626, #b91c1c)'"
-            onclick="window.handleMapPopupTrackVessel && window.handleMapPopupTrackVessel('${mmsi}', '${vesselName.replace(/'/g, "\\'")}')">
-            Track Vessel
-          </button>
-        </div>
-      </div>
-    `;
+  private static getPositionInfoConfig(positionType: string) {
+    switch (positionType) {
+      case "oldest":
+        return {
+          title: "Track Start",
+          description: "This is the earliest recorded position for this vessel's track. Use this to see where the vessel's journey began.",
+          background: "linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.1))",
+          borderColor: "#10b981",
+        };
+      case "latest":
+        return {
+          title: "Latest Position",
+          description: "This is the most recent position before the current location. The vessel's track ends near this point.",
+          background: "linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(220, 38, 38, 0.1))",
+          borderColor: "#ef4444",
+        };
+      default:
+        return {
+          title: "Historical Track Point",
+          description: "This represents a previous position along the vessel's route. Click different markers to see the vessel's movement pattern.",
+          background: "linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(37, 99, 235, 0.1))",
+          borderColor: "#3b82f6",
+        };
+    }
   }
 }
 

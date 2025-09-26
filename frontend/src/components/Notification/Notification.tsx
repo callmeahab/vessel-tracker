@@ -1,8 +1,14 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useEffect } from "react";
-import { MdCheckCircle, MdError, MdInfo, MdWarning, MdClose } from "react-icons/md";
+import {
+  MdCheckCircle,
+  MdError,
+  MdInfo,
+  MdWarning,
+  MdClose,
+} from "react-icons/md";
 
 export interface NotificationProps {
   id: string;
@@ -88,7 +94,9 @@ export default function Notification({
           {title}
         </p>
         {message && (
-          <p className={`mt-1 text-xs ${colors.text} opacity-90 text-shadow-sm`}>
+          <p
+            className={`mt-1 text-xs ${colors.text} opacity-90 text-shadow-sm`}
+          >
             {message}
           </p>
         )}

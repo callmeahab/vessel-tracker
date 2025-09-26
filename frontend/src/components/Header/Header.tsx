@@ -1,14 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import {
-  MdWarning,
-  MdRefresh,
-  MdDelete,
-  MdDirectionsBoat,
-  MdFilterList,
-  MdFilterListOff,
-} from "react-icons/md";
+import { MdWarning, MdDirectionsBoat, MdFilterList } from "react-icons/md";
 
 export type ViolationFilter =
   | "all"
@@ -42,7 +35,7 @@ export default function Header({
       initial={{ y: -20, opacity: 0, rotateX: -10 }}
       animate={{ y: 0, opacity: 1, rotateX: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
-      className="relative z-10 glass-coral hover-3d perspective"
+      className="relative z-1 glass-coral hover-3d perspective"
       style={{ transformStyle: "preserve-3d" }}
     >
       <div className="max-w-7xl mx-auto">
@@ -55,7 +48,7 @@ export default function Header({
           <div className="flex items-center gap-2 sm:gap-3">
             <motion.div
               whileHover={{ scale: 1.05, rotateY: 2 }}
-              className="glass-light flex px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm text-white backdrop-blur-md hover-3d floating"
+              className="glass-light flex px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm text-white backdrop-blur-md"
             >
               <MdDirectionsBoat className="inline mr-1 my-auto" />
               <span className="font-medium mr-2 my-auto text-shadow-sm hidden sm:inline">

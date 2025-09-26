@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  MdShield,
-  MdSpeed,
-  MdAnchor,
-  MdWarning,
-  MdBeachAccess,
-} from "react-icons/md";
+import { MdShield, MdSpeed, MdWarning, MdBeachAccess } from "react-icons/md";
 import { GiAnchor } from "react-icons/gi";
 
 interface ViolationIconProps {
@@ -14,7 +8,10 @@ interface ViolationIconProps {
   className?: string;
 }
 
-export default function ViolationIcon({ iconName, className = "" }: ViolationIconProps) {
+export default function ViolationIcon({
+  iconName,
+  className = "",
+}: ViolationIconProps) {
   const getIcon = () => {
     switch (iconName) {
       case "shield":

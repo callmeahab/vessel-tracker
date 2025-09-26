@@ -8,12 +8,12 @@ import Map, {
   NavigationControl,
   MapRef,
 } from "react-map-gl/mapbox";
-import * as turf from "@turf/turf";
 import { VesselData } from "@/types/vessel";
 import {
   MapPopupControl,
   VesselProperties,
 } from "@/components/MapPopup/MapPopup";
+import { API_ENDPOINTS, getApiUrl } from "@/lib/api-config";
 import MobileVesselPanel from "@/components/MobileVesselPanel/MobileVesselPanel";
 import MobilePosidoniaPanel from "@/components/MobilePosidoniaPanel/MobilePosidoniaPanel";
 import {
@@ -167,7 +167,11 @@ export default function MapComponent({
   const [selectedVesselId, setSelectedVesselId] = useState<string | null>(null);
 
   // Posidonia panel state
-  const [selectedPosidonia, setSelectedPosidonia] = useState<any>(null);
+  const [selectedPosidonia, setSelectedPosidonia] = useState<{
+    properties?: Record<string, unknown>;
+    geometry?: unknown;
+    id?: string | number;
+  } | null>(null);
   const [isMobilePosidoniaOpen, setIsMobilePosidoniaOpen] = useState(false);
 
   // Detect mobile on mount and resize
@@ -255,8 +259,7 @@ export default function MapComponent({
 
   // Load posidonia data
   useEffect(() => {
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
-    fetch(`${API_BASE_URL}/api/posidonia`)
+    fetch(getApiUrl(API_ENDPOINTS.posidonia))
       .then((res) => {
         if (!res.ok) {
           throw new Error(`HTTP error! status: ${res.status}`);
@@ -267,12 +270,11 @@ export default function MapComponent({
         if (data && data.type === "FeatureCollection" && data.features) {
           setPosidoniaData(data);
         } else {
-          console.warn("Invalid posidonia GeoJSON data received:", data);
+          // Invalid posidonia GeoJSON data received
         }
       })
       .catch((err) => console.error("Failed to load posidonia data:", err));
   }, []);
-
 
   // Spatial analysis is now handled by the violations worker for consistency
 
@@ -320,7 +322,7 @@ export default function MapComponent({
             // Use violations from the worker
             violations: vessel.violations || [],
             violationSeverity: vessel.violationSeverity || null,
-            violationColor: vessel.violationColor || null,
+            violationColor: vessel.violationColor || "#86efac",
           },
         };
       }),
@@ -330,11 +332,9 @@ export default function MapComponent({
   // Handle map load
   const onMapLoad = useCallback(() => {
     if (mapLoadedRef.current) {
-      console.log("Map already loaded, skipping duplicate call");
       return;
     }
     mapLoadedRef.current = true;
-    console.log("Map loaded successfully");
     if (onMapReady && mapRef.current) {
       onMapReady(mapRef.current.getMap());
     }
@@ -356,7 +356,7 @@ export default function MapComponent({
               try {
                 map.moveLayer(layerId);
               } catch (error) {
-                console.debug(`Failed to move layer ${layerId} to top:`, error);
+                // Failed to move layer to top
               }
             }
           });
@@ -487,11 +487,6 @@ export default function MapComponent({
 
         if (!properties) return;
 
-        const coordinates = (feature.geometry as GeoJSON.Point).coordinates as [
-          number,
-          number
-        ];
-
         // Clear previous selection
         if (selectedVesselId) {
           map.setFeatureState(
@@ -510,10 +505,12 @@ export default function MapComponent({
 
         // Always use panel for both mobile and desktop
         // Find the original vessel data to get the UUID
-        const originalVessel = vessels.find(v => v.vessel?.mmsi === properties.mmsi);
+        const originalVessel = vessels.find(
+          (v) => v.vessel?.mmsi === properties.mmsi
+        );
         const vesselWithUuid = {
           ...properties,
-          uuid: originalVessel?.vessel?.uuid
+          uuid: originalVessel?.vessel?.uuid,
         } as unknown as VesselProperties;
 
         setSelectedVessel(vesselWithUuid);
@@ -543,7 +540,13 @@ export default function MapComponent({
 
         if (isMobile) {
           // On mobile, open the Posidonia panel
-          setSelectedPosidonia(feature);
+          setSelectedPosidonia(
+            feature as {
+              properties?: Record<string, unknown>;
+              geometry?: unknown;
+              id?: string | number;
+            }
+          );
           setIsMobilePosidoniaOpen(true);
         } else {
           // On desktop, show popup
@@ -561,7 +564,7 @@ export default function MapComponent({
       }
 
       // Clicked on background: close any open popup/panel
-      MapPopupControl.closeVesselPopup();
+      MapPopupControl.closePopup();
       setIsMobilePanelOpen(false);
       setIsMobilePosidoniaOpen(false);
       setSelectedVessel(null);
@@ -700,7 +703,6 @@ export default function MapComponent({
               try {
                 // Check if icon already exists
                 if (map.hasImage("boat-icon")) {
-                  console.log("boat-icon already exists, skipping creation");
                   return;
                 }
 
@@ -751,7 +753,6 @@ export default function MapComponent({
                 // Get ImageData and add to map
                 const imageData = ctx.getImageData(0, 0, size, size);
                 map.addImage("boat-icon", imageData);
-                console.log("boat-icon created successfully");
               } catch (error) {
                 console.error("Failed to create boat-icon:", error);
               }
@@ -759,16 +760,13 @@ export default function MapComponent({
 
             // Handle missing images
             map.on("styleimagemissing", (e) => {
-              console.log("Missing image:", e.id);
               if (e.id === "boat-icon") {
-                console.log("Attempting to recreate boat-icon");
                 createBoatIcon();
               }
             });
 
             // Enable 3D terrain and atmosphere
             map.on("style.load", () => {
-              console.log("Map style loaded, creating boat icon");
               // Create the boat icon after style is loaded
               createBoatIcon();
 
@@ -968,7 +966,7 @@ export default function MapComponent({
                   }}
                   paint={{
                     "fill-color": "#10b981",
-                    "fill-opacity": 0.7,
+                    "fill-opacity": 0.3,
                   }}
                 />
                 <Layer
@@ -1007,7 +1005,7 @@ export default function MapComponent({
                   }}
                   paint={{
                     "fill-color": "#f59e0b",
-                    "fill-opacity": 0.6,
+                    "fill-opacity": 0.3,
                   }}
                 />
                 <Layer
@@ -1046,7 +1044,7 @@ export default function MapComponent({
                   }}
                   paint={{
                     "fill-color": "#059669",
-                    "fill-opacity": 0.5,
+                    "fill-opacity": 0.2,
                   }}
                 />
                 <Layer
@@ -1087,7 +1085,7 @@ export default function MapComponent({
                   }}
                   paint={{
                     "fill-color": "#7dd3fc",
-                    "fill-opacity": 0.6,
+                    "fill-opacity": 0.3,
                   }}
                 />
                 <Layer
@@ -1125,10 +1123,10 @@ export default function MapComponent({
                 "circle-radius": [
                   "case",
                   ["boolean", ["feature-state", "hover"], false],
-                  13,
+                  15,
                   ["boolean", ["feature-state", "selected"], false],
-                  13,
-                  10,
+                  15,
+                  12,
                 ],
                 "circle-color": [
                   "case",
@@ -1137,7 +1135,7 @@ export default function MapComponent({
                   "#dc2626",
                   // Second priority: Violation color if available
                   ["has", "violationColor"],
-                  ["get", "violationColor"],
+                  ["to-color", ["get", "violationColor"]],
                   // Default: Other statuses
                   [
                     "case",
@@ -1159,10 +1157,10 @@ export default function MapComponent({
                 "circle-stroke-width": [
                   "case",
                   ["boolean", ["feature-state", "selected"], false],
-                  5,
+                  6,
                   ["boolean", ["feature-state", "hover"], false],
-                  4,
-                  2,
+                  5,
+                  3,
                 ],
                 "circle-stroke-opacity": [
                   "case",
@@ -1251,7 +1249,7 @@ export default function MapComponent({
                 "text-color": [
                   "case",
                   ["has", "violationColor"],
-                  ["get", "violationColor"],
+                  ["to-color", ["get", "violationColor"]],
                   [
                     "case",
                     ["get", "isAnchoredOnPosidonia"],

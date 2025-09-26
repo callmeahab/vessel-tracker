@@ -6,7 +6,7 @@ import { MdClose, MdGrass, MdWarning, MdInfo } from "react-icons/md";
 interface MobilePosidoniaProps {
   isOpen: boolean;
   onClose: () => void;
-  posidoniaData: any;
+  posidoniaData: {properties?: Record<string, unknown>; geometry?: unknown; id?: string | number} | null;
 }
 
 export default function MobilePosidoniaPanel({
@@ -18,7 +18,7 @@ export default function MobilePosidoniaPanel({
 
   // Determine health status based on properties
   const getHealthStatus = () => {
-    const classification = posidoniaData.properties?.classification || "standard";
+    const classification = (posidoniaData.properties?.classification as string) || "standard";
 
     if (classification === "healthy") {
       return {
@@ -56,7 +56,7 @@ export default function MobilePosidoniaPanel({
   };
 
   const status = getHealthStatus();
-  const classification = posidoniaData.properties?.classification || "standard";
+  const classification = (posidoniaData.properties?.classification as string) || "standard";
 
   return (
     <AnimatePresence>
@@ -208,24 +208,24 @@ export default function MobilePosidoniaPanel({
                   </h3>
                   <div className="space-y-1 text-sm text-white/90">
                     <p>Classification: {status.label}</p>
-                    {posidoniaData.properties.area && (
-                      <p>Area: {Number(posidoniaData.properties.area).toLocaleString()} m²</p>
+                    {(posidoniaData.properties?.area as number) && (
+                      <p>Area: {Number(posidoniaData.properties.area as number).toLocaleString()} m²</p>
                     )}
-                    {posidoniaData.properties.depth && (
-                      <p>Average Depth: {posidoniaData.properties.depth} meters</p>
+                    {(posidoniaData.properties?.depth as number) && (
+                      <p>Average Depth: {posidoniaData.properties.depth as number} meters</p>
                     )}
-                    {posidoniaData.properties.coverage && (
-                      <p>Coverage: {posidoniaData.properties.coverage}%</p>
+                    {(posidoniaData.properties?.coverage as number) && (
+                      <p>Coverage: {posidoniaData.properties.coverage as number}%</p>
                     )}
-                    {posidoniaData.properties.density && (
-                      <p>Shoot Density: {posidoniaData.properties.density} shoots/m²</p>
+                    {(posidoniaData.properties?.density as number) && (
+                      <p>Shoot Density: {posidoniaData.properties.density as number} shoots/m²</p>
                     )}
-                    {posidoniaData.properties.last_survey && (
-                      <p>Last Survey: {posidoniaData.properties.last_survey}</p>
+                    {(posidoniaData.properties?.last_survey as string) && (
+                      <p>Last Survey: {posidoniaData.properties.last_survey as string}</p>
                     )}
-                    {posidoniaData.geometry && (
+                    {!!posidoniaData.geometry && (
                       <p className="text-xs text-white/70 mt-2">
-                        Feature ID: {posidoniaData.id || `posidonia-${classification}-${Date.now()}`}
+                        Feature ID: {(posidoniaData.id as string | number) || `posidonia-${classification}-${Date.now()}`}
                       </p>
                     )}
                   </div>

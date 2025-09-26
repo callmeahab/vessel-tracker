@@ -18,6 +18,8 @@ import ProcessingIndicator from "@/components/ProcessingIndicator/ProcessingIndi
 import NotificationContainer from "@/components/NotificationContainer/NotificationContainer";
 import { useNotifications } from "@/hooks/useNotifications";
 import { MdWarning } from "react-icons/md";
+import { API_ENDPOINTS, getApiUrl } from "@/lib/api-config";
+import { MapPopupControl } from "@/components/MapPopup/MapPopup";
 
 export default function Home() {
   const [vessels, setVessels] = useState<VesselData[]>([]);
@@ -52,8 +54,6 @@ export default function Home() {
     "buffer-zone": true,
   });
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
-
   // Notification system
   const { notifications, addNotification, removeNotification } = useNotifications();
 
@@ -61,33 +61,26 @@ export default function Home() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        console.log("Starting progressive data fetch...");
 
         // Start with a soft loading state that doesn't block UI
         setLoading(true);
         setError(null);
 
         // Fetch critical data first (boundaries) in parallel
-        const boundariesPromise = fetch(`${API_BASE_URL}/api/park-boundaries`)
+        const boundariesPromise = fetch(getApiUrl(API_ENDPOINTS.parkBoundaries))
           .then((res) => (res.ok ? res.json() : null))
           .then((data) => {
             if (data) {
               setParkBoundaries(data);
-              console.log("Park boundaries loaded");
             }
           })
           .catch((err) => console.error("Boundaries error:", err));
 
-        const bufferedPromise = fetch(`${API_BASE_URL}/api/buffered-boundaries`)
+        const bufferedPromise = fetch(getApiUrl(API_ENDPOINTS.bufferedBoundaries))
           .then((res) => (res.ok ? res.json() : null))
           .then((data) => {
             if (data) {
               setBufferedBoundaries(data);
-              console.log(
-                "Buffered boundaries loaded:",
-                data.features?.length,
-                "features"
-              );
             }
           })
           .catch((err) => console.error("Buffered error:", err));
@@ -99,21 +92,12 @@ export default function Home() {
         setLoading(false);
 
         // Fetch vessels asynchronously without blocking
-        console.log(
-          "Fetching vessels from:",
-          `${API_BASE_URL}/api/vessels/in-park`
-        );
-        fetch(`${API_BASE_URL}/api/vessels/in-park`)
+        fetch(getApiUrl(API_ENDPOINTS.vesselsInPark))
           .then((res) => {
-            console.log("Vessel response status:", res.status);
             return res.ok ? res.json() : { vessels_in_park: [] };
           })
           .then((data) => {
             const vessels = data.vessels_in_park || [];
-            console.log(
-              `Loaded ${vessels.length} vessels`,
-              vessels.slice(0, 2)
-            );
             setVessels(Array.isArray(vessels) ? vessels : []);
           })
           .catch((err) => {
@@ -128,13 +112,13 @@ export default function Home() {
     };
 
     fetchData();
-  }, [API_BASE_URL]);
+  }, []);
 
   // Load posidonia data
   useEffect(() => {
     const fetchPosidoniaData = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/posidonia`);
+        const response = await fetch(getApiUrl(API_ENDPOINTS.posidonia));
         if (response.ok) {
           const data = await response.json();
           if (data && data.type === "FeatureCollection" && data.features) {
@@ -147,7 +131,7 @@ export default function Home() {
     };
 
     fetchPosidoniaData();
-  }, [API_BASE_URL]);
+  }, []);
 
   // Initialize violations engine (fallback for non-worker environments)
   const violationsEngine = useMemo(() => new ViolationsEngine(), []);
@@ -170,11 +154,6 @@ export default function Home() {
   // Trigger Web Worker processing when data changes
   useEffect(() => {
     if (shouldDetectViolations && Array.isArray(vessels) && parkBoundaries) {
-      console.log(
-        "Starting violation processing for",
-        vessels.length,
-        "vessels"
-      );
       processViolations(
         vessels,
         parkBoundaries,
@@ -183,11 +162,6 @@ export default function Home() {
         null // shoreline data - can be added later
       );
     } else {
-      console.log("Skipping violation processing:", {
-        shouldDetectViolations,
-        vesselsLength: vessels?.length,
-        hasParkBoundaries: !!parkBoundaries,
-      });
     }
   }, [
     shouldDetectViolations,
@@ -288,7 +262,7 @@ export default function Home() {
           ...vessel,
           violations: [],
           violationSeverity: undefined,
-          violationColor: undefined,
+          violationColor: "#86efac", // Default green for no violations
         };
       });
     }
@@ -359,7 +333,7 @@ export default function Home() {
 
         // Fetch previous positions from the last 7 days
         const response = await fetch(
-          `${API_BASE_URL}/api/vessels/${vesselUuid}/previous-positions?limit=50`
+          getApiUrl(API_ENDPOINTS.vesselPreviousPositions(vesselUuid, 50))
         );
 
         if (response.ok) {
@@ -371,7 +345,7 @@ export default function Home() {
             mapRef.current
           ) {
             // Create coordinates for previous positions (markers only, no lines)
-            const coordinates = positionData.previous_positions.map((entry: any) => [
+            const coordinates = positionData.previous_positions.map((entry: {longitude: number, latitude: number}) => [
               entry.longitude,
               entry.latitude,
             ]);
@@ -387,7 +361,7 @@ export default function Home() {
               type: "geojson",
               data: {
                 type: "FeatureCollection",
-                features: positionData.previous_positions.map((entry: any, index: number) => ({
+                features: positionData.previous_positions.map((entry: {longitude: number, latitude: number, timestamp: string, speed?: number}, index: number) => ({
                   type: "Feature",
                   properties: {
                     timestamp: entry.timestamp,
@@ -444,70 +418,17 @@ export default function Home() {
                 const feature = features[0];
                 const props = feature.properties;
 
-                const popup = new mapboxgl.Popup({
-                  closeButton: true,
-                  closeOnClick: false,
-                  className: 'vessel-popup'
-                })
-                  .setLngLat(e.lngLat)
-                  .setHTML(
-                    `
-                  <div class="bg-white/95 backdrop-blur-lg rounded-xl p-4 shadow-2xl border border-white/20 min-w-[250px]">
-                    <div class="flex items-center gap-3 mb-3">
-                      <div class="w-3 h-3 rounded-full ${
-                        props?.is_start
-                          ? "bg-green-500"
-                          : props?.is_end
-                          ? "bg-red-500"
-                          : "bg-blue-500"
-                      }"></div>
-                      <h3 class="font-semibold text-gray-900">${vesselName}</h3>
-                    </div>
-
-                    <div class="space-y-2 text-sm">
-                      <div class="flex justify-between">
-                        <span class="text-gray-600">Time:</span>
-                        <span class="font-medium text-gray-900">${new Date(
-                          props?.timestamp
-                        ).toLocaleString()}</span>
-                      </div>
-
-                      ${props?.speed ? `
-                      <div class="flex justify-between">
-                        <span class="text-gray-600">Speed:</span>
-                        <span class="font-medium text-gray-900">${props.speed} kts</span>
-                      </div>
-                      ` : ''}
-
-                      <div class="pt-2 border-t border-gray-200">
-                        <span class="text-xs font-medium ${
-                          props?.is_start
-                            ? "text-green-700"
-                            : props?.is_end
-                            ? "text-red-700"
-                            : "text-blue-700"
-                        }">
-                          ${
-                            props?.is_start
-                              ? "🟢 Oldest Position"
-                              : props?.is_end
-                              ? "🔴 Latest Position"
-                              : "🔵 Previous Position"
-                          }
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                `
-                  )
-                  .addTo(mapRef.current!);
-
-                // Auto-close after 10 seconds
-                setTimeout(() => {
-                  if (popup.isOpen()) {
-                    popup.remove();
+                MapPopupControl.createVesselPositionPopup(
+                  mapRef.current!,
+                  e.lngLat.toArray() as [number, number],
+                  {
+                    timestamp: props?.timestamp,
+                    speed: props?.speed,
+                    is_start: props?.is_start,
+                    is_end: props?.is_end,
+                    vesselName: vesselName,
                   }
-                }, 10000);
+                );
               }
             });
 
@@ -548,7 +469,7 @@ export default function Home() {
         setTrackingVessel(null);
       }
     },
-    [API_BASE_URL, addNotification]
+    [addNotification]
   );
 
   const handleTrackVessel = useCallback(
@@ -560,19 +481,19 @@ export default function Home() {
 
         // Fetch historical data from Datalastic API (last 7 days by default)
         const response = await fetch(
-          `${API_BASE_URL}/api/vessels/historical-data?uuid=${vesselUuid}&days=7&limit=100`
+          getApiUrl(API_ENDPOINTS.vesselHistoricalData(vesselUuid, 7, 100))
         );
 
         if (response.ok) {
           const historyData: VesselHistoryResponse = await response.json();
 
           if (
-            historyData.positions &&
-            historyData.positions.length > 0 &&
+            historyData.history &&
+            historyData.history.length > 0 &&
             mapRef.current
           ) {
             // Create coordinates from Datalastic historical data
-            const coordinates = historyData.positions.map((position) => [
+            const coordinates = historyData.history.map((position) => [
               position.longitude,
               position.latitude,
             ]);
@@ -588,7 +509,7 @@ export default function Home() {
               type: "geojson",
               data: {
                 type: "FeatureCollection",
-                features: historyData.positions.map((position, index) => ({
+                features: historyData.history.map((position, index) => ({
                   type: "Feature",
                   properties: {
                     timestamp: position.timestamp,
@@ -596,7 +517,7 @@ export default function Home() {
                     course: position.course,
                     heading: position.heading,
                     destination: position.destination,
-                    is_start: index === historyData.positions.length - 1,
+                    is_start: index === historyData.history.length - 1,
                     is_end: index === 0,
                   },
                   geometry: {
@@ -636,8 +557,8 @@ export default function Home() {
 
             // Fit map to show all track positions
             const bounds = new mapboxgl.LngLatBounds();
-            coordinates.forEach((coord: [number, number]) =>
-              bounds.extend(coord)
+            coordinates.forEach((coord) =>
+              bounds.extend(coord as [number, number])
             );
             mapRef.current.fitBounds(bounds, { padding: 50 });
 
@@ -683,7 +604,7 @@ export default function Home() {
             addNotification({
               type: "success",
               title: "Vessel Track Loaded",
-              message: `${vesselName} - ${historyData.positions.length} positions from Datalastic API`,
+              message: `${vesselName} - ${historyData.history.length} positions from Datalastic API`,
               duration: 4000,
             });
           } else {
@@ -715,7 +636,7 @@ export default function Home() {
         setTrackingVessel(null);
       }
     },
-    [API_BASE_URL, addNotification]
+    [addNotification]
   );
 
   const clearVesselTrack = useCallback(() => {
