@@ -25,7 +25,7 @@ const ViolationType = {
 
 // Default configuration
 const DEFAULT_CONFIG = {
-  bufferZoneDistance: 150,
+  bufferZoneDistance: 100,
   shoreProximityWarning: 100,
   speedLimitInPark: 5,
   anchoringSpeedThreshold: 0.5,
@@ -40,6 +40,15 @@ class ViolationsWorker {
   detectViolations(vessel, parkBoundaries, bufferedBoundaries, posidoniaData, shoreline) {
     const violations = [];
     const vesselPoint = turf.point([vessel.longitude, vessel.latitude]);
+
+    // Perform spatial analysis
+    const spatialAnalysis = this.performSpatialAnalysis(
+      vesselPoint,
+      vessel.vessel.speed || 0,
+      parkBoundaries,
+      bufferedBoundaries,
+      posidoniaData
+    );
 
     // Check posidonia violations
     const posidoniaViolations = this.checkPosidoniaViolations(
@@ -78,12 +87,117 @@ class ViolationsWorker {
       violations,
       maxSeverity,
       isWhitelisted: vessel.is_whitelisted || false,
-      primaryViolation
+      primaryViolation,
+      // Include spatial analysis results for consistent display
+      spatialAnalysis
     };
   }
 
+  performSpatialAnalysis(vesselPoint, speed, parkBoundaries, bufferedBoundaries, posidoniaData) {
+    const result = {
+      isOverPosidonia: false,
+      posidoniaFeature: null,
+      distanceToNearestPosidonia: Infinity,
+      isInBufferZone: false,
+      isInPark: false,
+      isNearPosidonia: false
+    };
+
+    try {
+      // Check if vessel is in park boundaries
+      if (parkBoundaries && parkBoundaries.features) {
+        for (const feature of parkBoundaries.features) {
+          if (feature.geometry &&
+              (feature.geometry.type === "Polygon" || feature.geometry.type === "MultiPolygon")) {
+            try {
+              const turfFeature = turf.feature(feature.geometry);
+              if (turf.booleanPointInPolygon(vesselPoint, turfFeature)) {
+                result.isInPark = true;
+                break;
+              }
+            } catch (error) {
+              console.debug("Park boundary check failed:", error);
+            }
+          }
+        }
+      }
+
+      // Check if vessel is in buffer zone
+      if (bufferedBoundaries && bufferedBoundaries.features) {
+        console.log(`Checking buffer zone for vessel at [${vesselPoint.geometry.coordinates}], isInPark: ${result.isInPark}`);
+        for (const feature of bufferedBoundaries.features) {
+          if (feature.geometry &&
+              (feature.geometry.type === "Polygon" || feature.geometry.type === "MultiPolygon")) {
+            try {
+              const turfFeature = turf.feature(feature.geometry);
+              const isInBuffer = turf.booleanPointInPolygon(vesselPoint, turfFeature);
+              console.log(`Buffer zone check result: ${isInBuffer}`);
+
+              if (isInBuffer) {
+                result.isInBufferZone = true;
+                console.log("Vessel detected in buffer zone!");
+                break;
+              }
+            } catch (error) {
+              console.debug("Buffer boundary check failed:", error);
+            }
+          }
+        }
+      } else {
+        console.log(`Buffer check skipped - bufferedBoundaries: ${!!bufferedBoundaries}, features: ${bufferedBoundaries?.features?.length || 0}`);
+      }
+
+      // Check posidonia violations (only if data is available)
+      if (posidoniaData && posidoniaData.features) {
+        for (const feature of posidoniaData.features) {
+          if (feature.geometry.type === "Polygon") {
+            const polygon = turf.polygon(feature.geometry.coordinates);
+
+            // Check if point is inside polygon
+            if (turf.booleanPointInPolygon(vesselPoint, polygon)) {
+              // Only consider it a violation if vessel is anchored (low speed)
+              if (speed <= this.config.anchoringSpeedThreshold) {
+                result.isOverPosidonia = true;
+                result.posidoniaFeature = feature;
+                result.distanceToNearestPosidonia = 0;
+                break;
+              }
+            }
+
+            // Calculate distance to polygon for nearby analysis
+            try {
+              const distance = turf.distance(
+                vesselPoint,
+                turf.centerOfMass(polygon),
+                { units: "meters" }
+              );
+              if (distance < result.distanceToNearestPosidonia) {
+                result.distanceToNearestPosidonia = distance;
+              }
+            } catch (distanceError) {
+              console.debug("Distance calculation failed:", distanceError);
+            }
+          }
+        }
+      }
+
+      // Set isNearPosidonia flag
+      result.isNearPosidonia = result.distanceToNearestPosidonia < 100;
+
+    } catch (error) {
+      console.warn("Error in spatial analysis:", error);
+    }
+
+    return result;
+  }
+
   checkBufferZoneViolation(vesselPoint, bufferedBoundaries) {
-    if (!bufferedBoundaries || !bufferedBoundaries.features) return null;
+    if (!bufferedBoundaries || !bufferedBoundaries.features) {
+      console.log("No buffered boundaries provided to worker for violation check");
+      return null;
+    }
+
+    console.log(`Checking buffer zone VIOLATION for vessel at [${vesselPoint.geometry.coordinates}], buffer features: ${bufferedBoundaries.features.length}`);
 
     for (const feature of bufferedBoundaries.features) {
       if (feature.geometry &&
@@ -92,7 +206,10 @@ class ViolationsWorker {
           const turfFeature = turf.feature(feature.geometry);
           const isInBuffer = turf.booleanPointInPolygon(vesselPoint, turfFeature);
 
+          console.log(`Vessel buffer VIOLATION check result: ${isInBuffer}`);
+
           if (isInBuffer) {
+            console.log("🚨 Buffer zone VIOLATION detected!");
             return {
               type: ViolationType.IN_BUFFER_ZONE,
               severity: ViolationSeverity.MEDIUM,
@@ -105,10 +222,11 @@ class ViolationsWorker {
             };
           }
         } catch (error) {
-          console.error("Buffer zone check failed:", error);
+          console.error("Buffer zone violation check failed:", error);
         }
       }
     }
+    console.log("No buffer zone violation detected for this vessel");
     return null;
   }
 
@@ -233,16 +351,37 @@ class ViolationsWorker {
 }
 
 // Worker instance
-const violationsWorker = new ViolationsWorker();
+console.log('Initializing violations worker...');
+console.log('Turf.js available:', typeof turf !== 'undefined');
+
+let violationsWorker;
+try {
+  violationsWorker = new ViolationsWorker();
+  console.log('Violations worker initialized successfully');
+} catch (error) {
+  console.error('Failed to initialize violations worker:', error);
+  throw error;
+}
 
 // Handle messages from main thread
 self.onmessage = async function(e) {
-  const { type, data } = e.data;
+  console.log('Worker received message:', e.data?.type);
 
   try {
+    const { type, data } = e.data;
+
     switch (type) {
       case 'PROCESS_VIOLATIONS':
+        console.log('Processing violations case reached');
         const { vessels, parkBoundaries, bufferedBoundaries, posidoniaData, shoreline } = data;
+
+        console.log('Worker received data:', {
+          vesselsCount: vessels?.length || 0,
+          parkBoundariesFeatures: parkBoundaries?.features?.length || 0,
+          bufferedBoundariesFeatures: bufferedBoundaries?.features?.length || 0,
+          posidoniaDataFeatures: posidoniaData?.features?.length || 0,
+          shorelineFeatures: shoreline?.features?.length || 0
+        });
 
         // Process vessels in batches to prevent blocking
         const batchSize = 25; // Smaller batches for smoother progress updates
@@ -272,8 +411,25 @@ self.onmessage = async function(e) {
             );
 
             processedCount++;
+
+            // Merge spatial analysis results into vessel properties for map display
+            const vesselWithAnalysis = {
+              ...vessel,
+              // Add spatial analysis results to vessel properties for map
+              isInPark: violationResult.spatialAnalysis.isInPark,
+              isInBufferZone: violationResult.spatialAnalysis.isInBufferZone,
+              isAnchoredOnPosidonia: violationResult.spatialAnalysis.isOverPosidonia,
+              distanceToNearestPosidonia: violationResult.spatialAnalysis.distanceToNearestPosidonia,
+              isNearPosidonia: violationResult.spatialAnalysis.isNearPosidonia,
+              // Add violations data
+              violations: violationResult.violations,
+              violationSeverity: violationResult.maxSeverity,
+              violationColor: violationsWorker.getVesselColor(violationResult)
+            };
+
             return {
               ...violationResult,
+              vessel: vesselWithAnalysis,
               violationColor: violationsWorker.getVesselColor(violationResult)
             };
           });

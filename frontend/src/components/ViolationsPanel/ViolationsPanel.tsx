@@ -193,16 +193,18 @@ export default function ViolationsPanel({
               damping: 25,
               duration: 0.4,
             }}
-            className="fixed top-0 right-0 w-[32rem] violations-panel-mobile h-screen glass-ocean hover-3d z-[60] flex flex-col overflow-hidden perspective"
+            className="fixed top-0 right-0 w-full sm:w-[28rem] lg:w-[32rem] violations-panel-mobile h-screen glass-ocean hover-3d z-[60] flex flex-col overflow-hidden perspective"
             style={{ transformStyle: "preserve-3d" }}
           >
             {/* Header */}
-            <div className="p-6 border-b border-white/20 bg-white/10 backdrop-blur-sm flex justify-between items-start flex-shrink-0">
+            <div className="p-4 sm:p-6 border-b border-white/20 bg-white/10 backdrop-blur-sm flex justify-between items-start flex-shrink-0">
               <div className="flex-1">
-                <h2 className="font-serif font-semibold text-xl text-white mb-1 text-shadow flex items-center">
-                  <MdWarning className="mr-2" /> Vessel Violations Monitor
+                <h2 className="font-sans font-semibold text-lg sm:text-xl text-white mb-1 text-shadow flex items-center">
+                  <MdWarning className="mr-2" />
+                  <span className="hidden sm:inline">Vessel Violations Monitor</span>
+                  <span className="sm:hidden">Violations</span>
                 </h2>
-                <p className="text-sm text-white/80 text-shadow-sm">
+                <p className="text-xs sm:text-sm text-white/80 text-shadow-sm">
                   Real-time detection of marine violations
                 </p>
                 <div className="mt-2 flex gap-2 text-xs">
@@ -247,7 +249,7 @@ export default function ViolationsPanel({
                   {/* Critical Violations */}
                   {vesselsByViolation.critical.length > 0 && (
                     <div className="mx-6">
-                      <h3 className="font-serif font-semibold text-base text-white mb-3 pb-2 border-b border-white/20 text-shadow flex items-center">
+                      <h3 className="font-sans font-semibold text-base text-white mb-3 pb-2 border-b border-white/20 text-shadow flex items-center">
                         <MdError className="mr-2 text-red-400" /> Critical
                         Violations ({vesselsByViolation.critical.length})
                       </h3>
@@ -262,7 +264,7 @@ export default function ViolationsPanel({
                   {/* High Severity Violations */}
                   {vesselsByViolation.high.length > 0 && (
                     <div className="mx-6">
-                      <h3 className="font-serif font-semibold text-base text-white mb-3 pb-2 border-b border-white/20 text-shadow flex items-center">
+                      <h3 className="font-sans font-semibold text-base text-white mb-3 pb-2 border-b border-white/20 text-shadow flex items-center">
                         <MdPriorityHigh className="mr-2 text-orange-400" /> High
                         Severity ({vesselsByViolation.high.length})
                       </h3>
@@ -277,7 +279,7 @@ export default function ViolationsPanel({
                   {/* Medium Severity Violations */}
                   {vesselsByViolation.medium.length > 0 && (
                     <div className="mx-6">
-                      <h3 className="font-serif font-semibold text-base text-white mb-3 pb-2 border-b border-white/20 text-shadow flex items-center">
+                      <h3 className="font-sans font-semibold text-base text-white mb-3 pb-2 border-b border-white/20 text-shadow flex items-center">
                         <MdWarning className="mr-2 text-yellow-400" /> Medium
                         Severity ({vesselsByViolation.medium.length})
                       </h3>
@@ -292,7 +294,7 @@ export default function ViolationsPanel({
                   {/* Low Severity Violations */}
                   {vesselsByViolation.low.length > 0 && (
                     <div className="mx-6">
-                      <h3 className="font-serif font-semibold text-base text-white mb-3 pb-2 border-b border-white/20 text-shadow flex items-center">
+                      <h3 className="font-sans font-semibold text-base text-white mb-3 pb-2 border-b border-white/20 text-shadow flex items-center">
                         <MdInfo className="mr-2 text-blue-400" /> Low Severity (
                         {vesselsByViolation.low.length})
                       </h3>
@@ -307,7 +309,7 @@ export default function ViolationsPanel({
                   {/* Compliant Vessels (Optional) */}
                   {vesselsByViolation.noViolations.length > 0 && (
                     <div className="mx-6">
-                      <h3 className="font-serif font-semibold text-base text-white mb-3 pb-2 border-b border-white/20 text-shadow flex items-center">
+                      <h3 className="font-sans font-semibold text-base text-white mb-3 pb-2 border-b border-white/20 text-shadow flex items-center">
                         <MdCheckCircle className="mr-2 text-green-400" />{" "}
                         Compliant Vessels (
                         {vesselsByViolation.noViolations.length})

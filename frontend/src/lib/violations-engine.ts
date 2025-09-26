@@ -54,7 +54,7 @@ export interface ViolationConfig {
 
 // Default configuration
 export const DEFAULT_VIOLATION_CONFIG: ViolationConfig = {
-  bufferZoneDistance: 150,
+  bufferZoneDistance: 100,
   shoreProximityWarning: 100,
   speedLimitInPark: 5,
   anchoringSpeedThreshold: 0.5,

@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useMemo, useCallback } from "react";
 import { VesselData } from "@/types/vessel";
+import { MdCheckCircle, MdLocationOn, MdWarning } from "react-icons/md";
 
 interface BufferViolationsPanelProps {
   vessels: VesselData[];
@@ -75,7 +76,7 @@ export default function BufferViolationsPanel({
             {/* Header */}
             <div className="p-6 border-b border-white/20 bg-white/10 backdrop-blur-sm flex justify-between items-start flex-shrink-0">
               <div className="flex-1">
-                <h2 className="font-serif font-semibold text-xl text-white mb-1 text-shadow">
+                <h2 className="font-sans font-semibold text-xl text-white mb-1 text-shadow">
                   ⚡ Buffer Zone Violations
                 </h2>
                 <p className="text-sm text-white/80 text-shadow-sm">
@@ -95,7 +96,7 @@ export default function BufferViolationsPanel({
             <div className="flex-1 overflow-y-auto py-4">
               {vesselData.totalViolations === 0 ? (
                 <div className="px-6 py-8 text-center text-white/80">
-                  <div className="text-6xl mb-4">✅</div>
+                  <MdCheckCircle className="text-6xl mb-4 text-green-400" />
                   <p className="font-semibold text-lg mb-2 text-white text-shadow">
                     No buffer zone violations
                   </p>
@@ -108,7 +109,7 @@ export default function BufferViolationsPanel({
                   {/* Posidonia Violations */}
                   {vesselData.posidoniaViolations.length > 0 && (
                     <div className="mx-6">
-                      <h3 className="font-serif font-semibold text-base text-white mb-3 pb-2 border-b border-white/20 text-shadow">
+                      <h3 className="font-sans font-semibold text-base text-white mb-3 pb-2 border-b border-white/20 text-shadow">
                         🚫 Anchored on Posidonia (
                         {vesselData.posidoniaViolations.length})
                       </h3>
@@ -148,7 +149,7 @@ export default function BufferViolationsPanel({
                                 }}
                                 className="w-full mt-2 px-3 py-2 glass-ocean rounded-md text-white text-xs font-medium hover:bg-white/30 transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
                               >
-                                📍 Track History
+                                <MdLocationOn className="inline mr-1" /> Track History
                               </button>
                             )}
                           </div>
@@ -160,7 +161,7 @@ export default function BufferViolationsPanel({
                   {/* Buffer Zone Violations */}
                   {vesselData.bufferViolations.length > 0 && (
                     <div className="mx-6">
-                      <h3 className="font-serif font-semibold text-base text-white mb-3 pb-2 border-b border-white/20 text-shadow">
+                      <h3 className="font-sans font-semibold text-base text-white mb-3 pb-2 border-b border-white/20 text-shadow">
                         ⚡ Buffer Zone Violations (
                         {vesselData.bufferViolations.length})
                       </h3>
@@ -187,7 +188,7 @@ export default function BufferViolationsPanel({
                               {vessel.longitude.toFixed(4)}
                             </p>
                             <p className="text-xs text-white font-medium text-shadow-sm">
-                              ⚠️ Too close to protected area (within 150m
+                              <MdWarning className="inline mr-1" /> Too close to protected area (within 100m
                               buffer)
                             </p>
                             {vessel.vessel.uuid && onTrackHistory && (
@@ -201,7 +202,7 @@ export default function BufferViolationsPanel({
                                 }}
                                 className="w-full mt-2 px-3 py-2 glass-ocean rounded-md text-white text-xs font-medium hover:bg-white/30 transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
                               >
-                                📍 Track History
+                                <MdLocationOn className="inline mr-1" /> Track History
                               </button>
                             )}
                           </div>
@@ -213,8 +214,8 @@ export default function BufferViolationsPanel({
                   {/* Whitelisted Vessels in Buffer */}
                   {vesselData.whitelistedInBuffer.length > 0 && (
                     <div className="mx-6">
-                      <h3 className="font-serif font-semibold text-base text-white mb-3 pb-2 border-b border-white/20 text-shadow">
-                        ✅ Whitelisted Vessels in Buffer (
+                      <h3 className="font-sans font-semibold text-base text-white mb-3 pb-2 border-b border-white/20 text-shadow">
+                        <MdCheckCircle className="inline mr-1 text-green-400" /> Whitelisted Vessels in Buffer (
                         {vesselData.whitelistedInBuffer.length})
                       </h3>
                       <div className="flex flex-col gap-3">
@@ -241,7 +242,7 @@ export default function BufferViolationsPanel({
                             </p>
                             {vessel.whitelist_info && (
                               <p className="text-xs text-white font-medium text-shadow-sm">
-                                ✅ {vessel.whitelist_info.reason}
+                                <MdCheckCircle className="inline mr-1 text-green-400" /> {vessel.whitelist_info.reason}
                               </p>
                             )}
                             {vessel.vessel.uuid && onTrackHistory && (
@@ -255,7 +256,7 @@ export default function BufferViolationsPanel({
                                 }}
                                 className="w-full mt-2 px-3 py-2 glass-ocean rounded-md text-white text-xs font-medium hover:bg-white/30 transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
                               >
-                                📍 Track History
+                                <MdLocationOn className="inline mr-1" /> Track History
                               </button>
                             )}
                           </div>
@@ -267,7 +268,7 @@ export default function BufferViolationsPanel({
                   {/* Informational: Vessels in Park */}
                   {vesselData.vesselsInPark.length > 0 && (
                     <div className="mx-6">
-                      <h3 className="font-serif font-semibold text-base text-white mb-3 pb-2 border-b border-white/20 text-shadow">
+                      <h3 className="font-sans font-semibold text-base text-white mb-3 pb-2 border-b border-white/20 text-shadow">
                         🌳 Vessels in Park ({vesselData.vesselsInPark.length})
                       </h3>
                       <div className="flex flex-col gap-3">
@@ -303,7 +304,7 @@ export default function BufferViolationsPanel({
                                 }}
                                 className="w-full mt-2 px-3 py-2 glass-ocean rounded-md text-white text-xs font-medium hover:bg-white/30 transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
                               >
-                                📍 Track History
+                                <MdLocationOn className="inline mr-1" /> Track History
                               </button>
                             )}
                           </div>

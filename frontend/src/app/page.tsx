@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import mapboxgl from "mapbox-gl";
 import { VesselData, VesselHistoryResponse } from "@/types/vessel";
-import Header from "@/components/Header/Header";
+import Header, { ViolationFilter } from "@/components/Header/Header";
 import Legend from "@/components/Legend/Legend";
 import MapComponent, { useMapLayers } from "@/components/Map/Map";
 import ViolationsPanel from "@/components/ViolationsPanel/ViolationsPanel";
@@ -15,6 +15,7 @@ import ViolationsEngine, {
 import MaritimeLoader from "@/components/MaritimeLoader/MaritimeLoader";
 import { useViolationsWorker } from "@/hooks/useViolationsWorker";
 import ProcessingIndicator from "@/components/ProcessingIndicator/ProcessingIndicator";
+import { MdWarning } from "react-icons/md";
 
 export default function Home() {
   const [vessels, setVessels] = useState<VesselData[]>([]);
@@ -32,6 +33,8 @@ export default function Home() {
     uuid: string;
     name: string;
   } | null>(null);
+  const [violationFilter, setViolationFilter] =
+    useState<ViolationFilter>("all");
   const mapRef = useRef<mapboxgl.Map | null>(null);
 
   // Layer visibility state
@@ -75,7 +78,11 @@ export default function Home() {
           .then((data) => {
             if (data) {
               setBufferedBoundaries(data);
-              console.log("Buffered boundaries loaded:", data.features?.length, "features");
+              console.log(
+                "Buffered boundaries loaded:",
+                data.features?.length,
+                "features"
+              );
             }
           })
           .catch((err) => console.error("Buffered error:", err));
@@ -87,11 +94,21 @@ export default function Home() {
         setLoading(false);
 
         // Fetch vessels asynchronously without blocking
+        console.log(
+          "Fetching vessels from:",
+          `${API_BASE_URL}/api/vessels/in-park`
+        );
         fetch(`${API_BASE_URL}/api/vessels/in-park`)
-          .then((res) => (res.ok ? res.json() : { vessels_in_park: [] }))
+          .then((res) => {
+            console.log("Vessel response status:", res.status);
+            return res.ok ? res.json() : { vessels_in_park: [] };
+          })
           .then((data) => {
             const vessels = data.vessels_in_park || [];
-            console.log(`Loaded ${vessels.length} vessels`);
+            console.log(
+              `Loaded ${vessels.length} vessels`,
+              vessels.slice(0, 2)
+            );
             setVessels(Array.isArray(vessels) ? vessels : []);
           })
           .catch((err) => {
@@ -137,7 +154,7 @@ export default function Home() {
     isProcessing,
     progress,
     error: workerError,
-    clearError
+    clearError,
   } = useViolationsWorker();
 
   // Skip violations detection during initial load or if data is not ready
@@ -148,6 +165,11 @@ export default function Home() {
   // Trigger Web Worker processing when data changes
   useEffect(() => {
     if (shouldDetectViolations && Array.isArray(vessels) && parkBoundaries) {
+      console.log(
+        "Starting violation processing for",
+        vessels.length,
+        "vessels"
+      );
       processViolations(
         vessels,
         parkBoundaries,
@@ -155,6 +177,12 @@ export default function Home() {
         posidoniaData,
         null // shoreline data - can be added later
       );
+    } else {
+      console.log("Skipping violation processing:", {
+        shouldDetectViolations,
+        vesselsLength: vessels?.length,
+        hasParkBoundaries: !!parkBoundaries,
+      });
     }
   }, [
     shouldDetectViolations,
@@ -162,7 +190,7 @@ export default function Home() {
     parkBoundaries,
     bufferedBoundaries,
     posidoniaData,
-    processViolations
+    processViolations,
   ]);
 
   // Use worker violations if available, otherwise use fallback
@@ -206,38 +234,90 @@ export default function Home() {
     posidoniaData,
   ]);
 
-  // Enhanced vessels with backward compatibility - optimized
+  // Enhanced vessels - always show all vessels with violation data when available
   const enhancedVessels = useMemo(() => {
-    if (vesselViolations.length === 0) return [];
+    // Always return vessels array if we have it
+    if (!Array.isArray(vessels) || vessels.length === 0) return [];
 
-    return vesselViolations.map((vv) => {
-      const hasBufferViolation = vv.violations.some(
-        (v) => v.type === "in_buffer_zone"
+    // If we have violation data, merge it with vessels
+    if (vesselViolations.length > 0) {
+      // Create a map of violations by vessel UUID for quick lookup
+      const violationsMap = new Map(
+        vesselViolations.map((vv) => [vv.vessel.vessel.uuid, vv])
       );
-      const hasPosidoniaViolation = vv.violations.some(
-        (v) => v.type === "anchored_on_posidonia"
-      );
 
+      return vessels.map((vessel) => {
+        const violationData = violationsMap.get(vessel.vessel.uuid);
 
-      // Simple park check based on existing violation data
-      const isInPark =
-        vv.violations.some(
-          (v) => v.type === "excessive_speed" || v.type === "in_restricted_area"
-        ) ||
-        vv.vessel.is_in_park ||
-        false;
+        if (violationData) {
+          const hasBufferViolation = violationData.violations.some(
+            (v) => v.type === "in_buffer_zone"
+          );
+          const hasPosidoniaViolation = violationData.violations.some(
+            (v) => v.type === "anchored_on_posidonia"
+          );
+          const isInPark =
+            violationData.violations.some(
+              (v) =>
+                v.type === "excessive_speed" || v.type === "in_restricted_area"
+            ) ||
+            vessel.is_in_park ||
+            false;
 
-      return {
-        ...vv.vessel,
-        is_in_buffer_zone: hasBufferViolation,
-        is_in_park: isInPark,
-        is_anchored_on_posidonia: hasPosidoniaViolation,
-        violations: vv.violations || [],
-        violationSeverity: vv.maxSeverity,
-        violationColor: (vv as VesselViolations & { violationColor?: string }).violationColor || violationsEngine.getVesselColor(vv),
-      };
+          return {
+            ...vessel,
+            is_in_buffer_zone: hasBufferViolation,
+            is_in_park: isInPark,
+            is_anchored_on_posidonia: hasPosidoniaViolation,
+            violations: violationData.violations || [],
+            violationSeverity: violationData.maxSeverity,
+            violationColor:
+              (violationData as VesselViolations & { violationColor?: string })
+                .violationColor ||
+              violationsEngine.getVesselColor(violationData),
+          };
+        }
+
+        // Return vessel as-is if no violation data
+        return {
+          ...vessel,
+          violations: [],
+          violationSeverity: undefined,
+          violationColor: undefined,
+        };
+      });
+    }
+
+    // If no violations processed yet, just return vessels as-is
+    return vessels;
+  }, [vessels, vesselViolations, violationsEngine]);
+
+  // Filtered vessels based on violation filter
+  const filteredVessels = useMemo(() => {
+    if (violationFilter === "all") return enhancedVessels;
+
+    return enhancedVessels.filter((vessel) => {
+      const hasViolations = vessel.violations && vessel.violations.length > 0;
+      const violationSeverity = vessel.violationSeverity;
+
+      switch (violationFilter) {
+        case "violations-only":
+          return hasViolations;
+        case "critical":
+          return violationSeverity === "critical";
+        case "high":
+          return violationSeverity === "high";
+        case "medium":
+          return violationSeverity === "medium";
+        case "low":
+          return violationSeverity === "low";
+        case "no-violations":
+          return !hasViolations;
+        default:
+          return true;
+      }
     });
-  }, [vesselViolations, violationsEngine]);
+  }, [enhancedVessels, violationFilter]);
 
   const refreshData = () => {
     window.location.reload();
@@ -257,6 +337,8 @@ export default function Home() {
         duration: 2000,
       });
     }
+    // Close violations panel when vessel is clicked
+    setViolationsPanelOpen(false);
   }, []);
 
   const closeViolationsPanel = useCallback(() => {
@@ -267,6 +349,8 @@ export default function Home() {
     async (vesselUuid: string, vesselName: string) => {
       try {
         setTrackingVessel({ uuid: vesselUuid, name: vesselName });
+        // Close violations panel when tracking vessel
+        setViolationsPanelOpen(false);
 
         // Fetch vessel history from the last 7 days (no limit for full data)
         const response = await fetch(
@@ -462,17 +546,17 @@ export default function Home() {
 
   // Memoize vessel calculations to prevent expensive recalculations
   const vesselStats = useMemo(() => {
-    if (!Array.isArray(enhancedVessels)) {
+    if (!Array.isArray(filteredVessels)) {
       return { vesselsInBuffer: 0, vesselsInPark: 0 };
     }
 
     return {
-      vesselsInBuffer: enhancedVessels.filter(
+      vesselsInBuffer: filteredVessels.filter(
         (v) => v.is_in_buffer_zone && !v.is_whitelisted
       ).length,
-      vesselsInPark: enhancedVessels.filter((v) => v.is_in_park).length,
+      vesselsInPark: filteredVessels.filter((v) => v.is_in_park).length,
     };
-  }, [enhancedVessels]);
+  }, [filteredVessels]);
 
   if (error) {
     return (
@@ -484,7 +568,7 @@ export default function Home() {
         }}
       >
         <div className="text-center glass-heavy p-8 rounded-xl shadow-2xl max-w-md mx-4">
-          <div className="text-white text-6xl mb-4 drop-shadow-lg">⚠️</div>
+          <MdWarning className="text-white text-6xl mb-4 drop-shadow-lg" />
           <p className="text-white mb-6 font-medium text-shadow">{error}</p>
           <button
             onClick={refreshData}
@@ -497,27 +581,29 @@ export default function Home() {
     );
   }
 
-
   return (
     <div
-      className="h-screen flex flex-col relative isolate"
+      className="h-screen flex flex-col relative isolate overflow-hidden"
       style={{
         background: "linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)",
       }}
     >
       {/* Loading overlay */}
       {(loading || mapLoading) && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/20">
-          <div className="text-center glass-heavy p-12 rounded-2xl shadow-3xl max-w-lg mx-4">
-            <MaritimeLoader message="Initializing Maritime Sentinel" size="lg" />
+        <div className="absolute inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/20 p-4">
+          <div className="text-center glass-heavy p-6 sm:p-8 lg:p-12 rounded-2xl shadow-3xl max-w-xs sm:max-w-lg mx-4">
+            <MaritimeLoader
+              message="Initializing Maritime Sentinel"
+              size="lg"
+            />
 
-            <div className="space-y-3 mb-6 mt-8">
+            <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6 mt-4 sm:mt-8">
               <div className="flex items-center justify-center space-x-2 text-white/90">
                 <div
                   className="w-2 h-2 bg-white rounded-full animate-pulse"
                   style={{ animationDelay: "0s" }}
                 ></div>
-                <span className="text-sm font-medium text-shadow-sm">
+                <span className="text-xs sm:text-sm font-medium text-shadow-sm">
                   Loading park boundaries...
                 </span>
               </div>
@@ -526,7 +612,7 @@ export default function Home() {
                   className="w-2 h-2 bg-white rounded-full animate-pulse"
                   style={{ animationDelay: "0.5s" }}
                 ></div>
-                <span className="text-sm font-medium text-shadow-sm">
+                <span className="text-xs sm:text-sm font-medium text-shadow-sm">
                   Mapping posidonia seagrass...
                 </span>
               </div>
@@ -535,8 +621,10 @@ export default function Home() {
                   className="w-2 h-2 bg-white rounded-full animate-pulse"
                   style={{ animationDelay: "1s" }}
                 ></div>
-                <span className="text-sm font-medium text-shadow-sm">
-                  {mapLoading ? "Initializing map..." : "Finding park rule violations..."}
+                <span className="text-xs sm:text-sm font-medium text-shadow-sm">
+                  {mapLoading
+                    ? "Initializing map..."
+                    : "Finding park rule violations..."}
                 </span>
               </div>
             </div>
@@ -558,17 +646,18 @@ export default function Home() {
 
       <Header
         vesselCount={
-          Array.isArray(enhancedVessels) ? enhancedVessels.length : 0
+          Array.isArray(filteredVessels) ? filteredVessels.length : 0
         }
         vesselsInBuffer={vesselStats.vesselsInBuffer}
-        onRefresh={refreshData}
         onClearTrack={clearVesselTrack}
         trackingVessel={trackingVessel}
         onGenerateBufferViolations={generateBufferViolations}
+        violationFilter={violationFilter}
+        onViolationFilterChange={setViolationFilter}
       />
 
       <MapComponent
-        vessels={enhancedVessels}
+        vessels={filteredVessels}
         parkBoundaries={parkBoundaries}
         bufferedBoundaries={bufferedBoundaries}
         loading={loading}
@@ -584,7 +673,7 @@ export default function Home() {
       />
 
       <ViolationsPanel
-        vessels={enhancedVessels}
+        vessels={filteredVessels}
         isOpen={violationsPanelOpen}
         onClose={closeViolationsPanel}
         onVesselClick={handleVesselClick}

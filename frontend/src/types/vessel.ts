@@ -29,6 +29,17 @@ export interface VesselData {
     added_by: string;
   };
   timestamp?: string;
+  // Enriched client-side fields (from violations engine/worker)
+  // CamelCase convenience flags used by the map rendering code
+  isInPark?: boolean;
+  isInBufferZone?: boolean;
+  isAnchoredOnPosidonia?: boolean;
+  distanceToNearestPosidonia?: number;
+  isNearPosidonia?: boolean;
+  // Violation details attached on the client
+  violations?: import("@/lib/violations-engine").Violation[];
+  violationSeverity?: import("@/lib/violations-engine").ViolationSeverity;
+  violationColor?: string | null;
 }
 
 export interface VesselHistoryEntry {

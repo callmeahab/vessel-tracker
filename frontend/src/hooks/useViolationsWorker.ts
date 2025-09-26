@@ -39,7 +39,7 @@ export function useViolationsWorker(): UseViolationsWorkerReturn {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        workerRef.current = new Worker('/static/workers/violations-worker.js');
+        workerRef.current = new Worker('/workers/violations-worker.js');
 
         workerRef.current.onmessage = (e) => {
           const { type, data } = e.data;
@@ -50,14 +50,18 @@ export function useViolationsWorker(): UseViolationsWorkerReturn {
               break;
 
             case 'VIOLATIONS_PROCESSED':
+              console.log('Violations processed:', data.length, 'results');
               setViolations(data);
               // Show completion briefly before hiding
-              setProgress({
-                processed: data.length,
-                total: data.length,
-                percentage: 100
-              });
+              if (progress) {
+                setProgress({
+                  processed: progress.total,
+                  total: progress.total,
+                  percentage: 100
+                });
+              }
               setTimeout(() => {
+                console.log('Hiding processing indicator');
                 setIsProcessing(false);
                 setProgress(null);
               }, 800);
@@ -114,11 +118,15 @@ export function useViolationsWorker(): UseViolationsWorkerReturn {
       return;
     }
 
-    if (vessels.length === 0) {
+    if (!vessels || vessels.length === 0) {
+      console.log('No vessels to process, clearing state');
       setViolations([]);
+      setIsProcessing(false);
+      setProgress(null);
       return;
     }
 
+    console.log('Starting violation processing for', vessels.length, 'vessels');
     setIsProcessing(true);
     setProgress({ processed: 0, total: vessels.length, percentage: 0 });
     setError(null);
@@ -126,6 +134,7 @@ export function useViolationsWorker(): UseViolationsWorkerReturn {
     // Small delay to ensure UI updates before processing starts
     setTimeout(() => {
       if (workerRef.current) {
+        console.log('Sending PROCESS_VIOLATIONS message to worker');
         workerRef.current.postMessage({
           type: 'PROCESS_VIOLATIONS',
           data: {
@@ -136,6 +145,10 @@ export function useViolationsWorker(): UseViolationsWorkerReturn {
             shoreline
           }
         });
+      } else {
+        console.error('Worker not available when trying to process');
+        setIsProcessing(false);
+        setProgress(null);
       }
     }, 100);
   }, []);

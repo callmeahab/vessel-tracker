@@ -6,23 +6,36 @@ import {
   MdRefresh,
   MdDelete,
   MdDirectionsBoat,
+  MdFilterList,
+  MdFilterListOff,
 } from "react-icons/md";
+
+export type ViolationFilter =
+  | "all"
+  | "violations-only"
+  | "critical"
+  | "high"
+  | "medium"
+  | "low"
+  | "no-violations";
 
 interface HeaderProps {
   vesselCount: number;
   vesselsInBuffer: number;
-  onRefresh: () => void;
   onClearTrack?: () => void;
   trackingVessel?: { uuid: string; name: string } | null;
   onGenerateBufferViolations?: () => void;
+  violationFilter: ViolationFilter;
+  onViolationFilterChange: (filter: ViolationFilter) => void;
 }
 
 export default function Header({
   vesselCount,
-  onRefresh,
   onClearTrack,
   trackingVessel,
   onGenerateBufferViolations,
+  violationFilter,
+  onViolationFilterChange,
 }: HeaderProps) {
   return (
     <motion.header
@@ -33,20 +46,22 @@ export default function Header({
       style={{ transformStyle: "preserve-3d" }}
     >
       <div className="max-w-7xl mx-auto">
-        {/* Top bar with title and stats */}
-        <div className="flex justify-between items-center px-6 py-4">
-          <h1 className="text-xl font-serif font-bold text-white text-shadow">
+        {/* Top bar with title and stats - always on same line */}
+        <div className="flex flex-row justify-between items-center px-4 sm:px-6 py-3 sm:py-4">
+          <h1 className="text-base sm:text-xl font-sans font-bold text-white text-shadow">
             Blue Forest Sentinel
           </h1>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <motion.div
               whileHover={{ scale: 1.05, rotateY: 2 }}
-              className="glass-light px-3 py-1 rounded-lg text-sm text-white backdrop-blur-md hover-3d floating"
+              className="glass-light flex px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm text-white backdrop-blur-md hover-3d floating"
             >
-              <MdDirectionsBoat className="inline mr-1" />
-              <span className="font-medium mr-1 text-shadow-sm">Vessels: </span>
-              <span className="font-semibold text-shadow-3d">
+              <MdDirectionsBoat className="inline mr-1 my-auto" />
+              <span className="font-medium mr-2 my-auto text-shadow-sm hidden sm:inline">
+                Vessels:{" "}
+              </span>
+              <span className="font-semibold my-auto text-shadow-3d">
                 {vesselCount}
               </span>
             </motion.div>
@@ -55,8 +70,55 @@ export default function Header({
 
         {/* Navigation menu */}
         <nav className="">
-          <div className="px-6 py-3">
-            <div className="flex items-center gap-2 flex-wrap">
+          <div className="px-4 sm:px-6 py-2 sm:py-3">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center gap-3 lg:gap-2">
+              {/* Filter Section */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full lg:w-auto">
+                <span className="text-xs font-medium text-white/70 uppercase tracking-wider text-shadow-sm whitespace-nowrap">
+                  <MdFilterList className="inline mr-1" />
+                  Filter:
+                </span>
+                <div className="flex items-center gap-1 flex-wrap">
+                  {[
+                    { value: "all", label: "All", color: "glass" },
+                    {
+                      value: "violations-only",
+                      label: "Violations",
+                      color: "glass-coral",
+                    },
+                    {
+                      value: "critical",
+                      label: "Critical",
+                      color: "glass-red",
+                    },
+                    { value: "high", label: "High", color: "glass-orange" },
+                    { value: "medium", label: "Medium", color: "glass-yellow" },
+                    { value: "low", label: "Low", color: "glass-green" },
+                    {
+                      value: "no-violations",
+                      label: "None",
+                      color: "glass-emerald",
+                    },
+                  ].map((filter) => (
+                    <button
+                      key={filter.value}
+                      onClick={() =>
+                        onViolationFilterChange(filter.value as ViolationFilter)
+                      }
+                      className={`px-2 py-1 ${filter.color} ${
+                        violationFilter === filter.value
+                          ? "ring-1 ring-white/50"
+                          : ""
+                      } rounded-md text-white text-xs font-medium hover-3d text-shadow-3d hover:cursor-pointer transition-all`}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="hidden lg:block h-4 w-px bg-white/30 mx-2"></div>
+
               {/* Violations Section */}
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-white/70 uppercase tracking-wider text-shadow-sm">
@@ -65,13 +127,14 @@ export default function Header({
 
                 <button
                   onClick={onGenerateBufferViolations}
-                  className="px-3 py-1.5 glass-seagrass rounded-md text-white text-xs font-medium hover-3d hover:gradient-coral text-shadow-3d hover:cursor-pointer"
+                  className="px-2 sm:px-3 py-1.5 glass-seagrass rounded-md text-white text-xs font-medium hover-3d hover:gradient-coral text-shadow-3d hover:cursor-pointer"
                 >
-                  <MdWarning className="inline mr-1" /> View All Violations
+                  <MdWarning className="inline mr-1" />
+                  <span className="hidden sm:inline">View All </span>Violations
                 </button>
               </div>
 
-              <div className="h-4 w-px bg-white/30 mx-2"></div>
+              <div className="hidden lg:block h-4 w-px bg-white/30 mx-2"></div>
 
               {/* Tracking Section */}
               <div className="flex items-center gap-2">
@@ -79,32 +142,24 @@ export default function Header({
                   Tracking:
                 </span>
 
-                {trackingVessel && onClearTrack && (
+                {trackingVessel && onClearTrack ? (
                   <button
                     onClick={onClearTrack}
-                    className="px-3 py-1.5 glass rounded-md text-white text-xs font-medium hover-3d hover:bg-white/30 text-shadow-3d hover:cursor-pointer"
+                    className="flex gap-0.5 px-2 sm:px-3 py-1.5 glass rounded-md text-white text-xs font-medium hover-3d hover:bg-white/30 text-shadow-3d hover:cursor-pointer"
                   >
-                    <MdDelete className="inline mr-1" /> Clear (
-                    {trackingVessel.name})
+                    <span className="hidden sm:inline">Clear (</span>
+                    <span className="sm:hidden">Clear </span>
+                    <span className="max-w-24 sm:max-w-none truncate inline-block">
+                      {trackingVessel.name}
+                    </span>
+                    <span className="hidden sm:inline">)</span>
                   </button>
+                ) : (
+                  <span className="text-xs text-white/50">None</span>
                 )}
               </div>
 
-              <div className="h-4 w-px bg-white/30 mx-2"></div>
-
-              {/* System Section */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-white/70 uppercase tracking-wider text-shadow-sm">
-                  System:
-                </span>
-
-                <button
-                  onClick={onRefresh}
-                  className="px-3 py-1.5 glass-ocean rounded-md text-white text-xs font-medium hover-3d hover:gradient-ocean-light text-shadow-3d hover:cursor-pointer"
-                >
-                  <MdRefresh className="inline mr-1" /> Refresh
-                </button>
-              </div>
+              <div className="hidden lg:block h-4 w-px bg-white/30 mx-2"></div>
             </div>
           </div>
         </nav>

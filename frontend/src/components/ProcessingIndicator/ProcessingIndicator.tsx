@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { MdRadar, MdClose } from "react-icons/md";
+import { MdRadar, MdClose, MdWarning } from "react-icons/md";
 
 interface ProcessingIndicatorProps {
   isProcessing: boolean;
@@ -21,7 +21,7 @@ export default function ProcessingIndicator({
   isProcessing,
   progress,
   error,
-  onClearError
+  onClearError,
 }: ProcessingIndicatorProps) {
   if (!isProcessing && !error) return null;
 
@@ -32,18 +32,21 @@ export default function ProcessingIndicator({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 20, scale: 0.9 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
-        className="fixed bottom-24 right-4 z-50"
+        className="fixed top-36 sm:bottom-4 right-2 sm:right-4 z-50"
       >
-        <div className="glass-ocean rounded-xl px-4 py-3 shadow-xl min-w-[220px] max-w-[300px] border border-white/10">
+        <div className="glass-ocean rounded-xl px-3 sm:px-4 py-3 shadow-xl min-w-[180px] sm:min-w-[220px] max-w-[280px] sm:max-w-[300px] border border-white/10">
           {error ? (
             // Error state
             <div className="flex items-center gap-2">
-              <div className="text-red-400 text-sm">⚠</div>
+              <MdWarning className="text-red-400 text-sm" />
               <div className="flex-1 min-w-0">
                 <p className="text-red-300 text-xs font-medium truncate">
                   Processing Error
                 </p>
-                <p className="text-red-200/80 text-xs truncate" title={error.message}>
+                <p
+                  className="text-red-200/80 text-xs truncate"
+                  title={error.message}
+                >
                   {error.message}
                 </p>
               </div>
@@ -80,10 +83,20 @@ export default function ProcessingIndicator({
                         className="h-full rounded-full relative"
                         style={{
                           background: `linear-gradient(90deg,
-                            ${progress.percentage < 33 ? '#3b82f6' :
-                              progress.percentage < 66 ? '#10b981' : '#22c55e'} 0%,
-                            ${progress.percentage < 33 ? '#60a5fa' :
-                              progress.percentage < 66 ? '#34d399' : '#86efac'} 100%)`
+                            ${
+                              progress.percentage < 33
+                                ? "#3b82f6"
+                                : progress.percentage < 66
+                                ? "#10b981"
+                                : "#22c55e"
+                            } 0%,
+                            ${
+                              progress.percentage < 33
+                                ? "#60a5fa"
+                                : progress.percentage < 66
+                                ? "#34d399"
+                                : "#86efac"
+                            } 100%)`,
                         }}
                         initial={{ width: 0 }}
                         animate={{ width: `${progress.percentage}%` }}
@@ -103,7 +116,9 @@ export default function ProcessingIndicator({
                         {progress.processed}/{progress.total} vessels
                       </p>
                       <p className="text-white/70 text-[10px] font-mono">
-                        {progress.percentage === 100 ? 'Complete' : `${Math.round((progress.processed / progress.total) * 1000) / 10}%`}
+                        {progress.percentage === 100
+                          ? "Complete"
+                          : `${progress.percentage}%`}
                       </p>
                     </div>
                   </div>

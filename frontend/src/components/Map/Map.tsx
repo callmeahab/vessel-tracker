@@ -8,13 +8,14 @@ import Map, {
   NavigationControl,
   MapRef,
 } from "react-map-gl/mapbox";
-import mapboxgl from "mapbox-gl";
 import * as turf from "@turf/turf";
 import { VesselData } from "@/types/vessel";
 import {
   MapPopupControl,
   VesselProperties,
 } from "@/components/MapPopup/MapPopup";
+import MobileVesselPanel from "@/components/MobileVesselPanel/MobileVesselPanel";
+import MobilePosidoniaPanel from "@/components/MobilePosidoniaPanel/MobilePosidoniaPanel";
 import {
   MdDirectionsBoat,
   MdWarning,
@@ -129,7 +130,7 @@ export function useMapLayers(
         name: "Buffer Zone",
         color: "#f59e0b",
         icon: <MdShield />,
-        description: "150m buffer around park",
+        description: "100m buffer around park",
         visible: layerVisibility["buffer-zone"],
         type: "boundaries",
         subLayers: ["buffered-fill", "buffered-outline"],
@@ -151,6 +152,30 @@ export default function MapComponent({
   const mapLoadedRef = useRef(false);
   const [posidoniaData, setPosidoniaData] =
     useState<GeoJSON.FeatureCollection | null>(null);
+
+  // Mobile detection and vessel panel state
+  const [isMobile, setIsMobile] = useState(false);
+  const [selectedVessel, setSelectedVessel] = useState<VesselProperties | null>(
+    null
+  );
+  const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false);
+  const [hoveredVesselId, setHoveredVesselId] = useState<string | null>(null);
+  const [selectedVesselId, setSelectedVesselId] = useState<string | null>(null);
+
+  // Posidonia panel state
+  const [selectedPosidonia, setSelectedPosidonia] = useState<any>(null);
+  const [isMobilePosidoniaOpen, setIsMobilePosidoniaOpen] = useState(false);
+
+  // Detect mobile on mount and resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   // Layer visibility state (use external or internal)
   const [internalLayerVisibility] = useState<Record<string, boolean>>({
@@ -226,8 +251,7 @@ export default function MapComponent({
 
   // Load posidonia data
   useEffect(() => {
-    const API_BASE_URL =
-      process.env.NEXT_PUBLIC_API_BASE_URL || "";
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
     fetch(`${API_BASE_URL}/api/posidonia`)
       .then((res) => {
         if (!res.ok) {
@@ -245,130 +269,7 @@ export default function MapComponent({
       .catch((err) => console.error("Failed to load posidonia data:", err));
   }, []);
 
-  // Comprehensive spatial analysis using Turf.js
-  const analyzeVesselPosition = useCallback(
-    (lat: number, lon: number, speed: number | null) => {
-      const result = {
-        isOverPosidonia: false,
-        posidoniaFeature: null as GeoJSON.Feature | null,
-        distanceToNearestPosidonia: Infinity,
-        isInBufferZone: false,
-        isInPark: false,
-      };
-
-      try {
-        const vesselPoint = turf.point([lon, lat]);
-
-        // Check if vessel is in park boundaries
-        if (parkBoundaries && parkBoundaries.features) {
-          for (const feature of parkBoundaries.features) {
-            if (
-              feature.geometry &&
-              (feature.geometry.type === "Polygon" ||
-                feature.geometry.type === "MultiPolygon")
-            ) {
-              try {
-                if (
-                  turf.booleanPointInPolygon(
-                    vesselPoint,
-                    feature as GeoJSON.Feature<
-                      GeoJSON.Polygon | GeoJSON.MultiPolygon
-                    >
-                  )
-                ) {
-                  result.isInPark = true;
-                  break;
-                }
-              } catch (error) {
-                console.debug("Park boundary check failed for feature:", error);
-              }
-            }
-          }
-        }
-
-        // Check if vessel is in buffer zone (but not in park - buffer zone is outside park)
-        if (
-          bufferedBoundaries &&
-          bufferedBoundaries.features &&
-          !result.isInPark
-        ) {
-          for (const feature of bufferedBoundaries.features) {
-            if (
-              feature.geometry &&
-              (feature.geometry.type === "Polygon" ||
-                feature.geometry.type === "MultiPolygon")
-            ) {
-              try {
-                if (
-                  turf.booleanPointInPolygon(
-                    vesselPoint,
-                    feature as GeoJSON.Feature<
-                      GeoJSON.Polygon | GeoJSON.MultiPolygon
-                    >
-                  )
-                ) {
-                  result.isInBufferZone = true;
-                  break;
-                }
-              } catch (error) {
-                console.debug(
-                  "Buffer boundary check failed for feature:",
-                  error
-                );
-              }
-            }
-          }
-        }
-
-        // Check posidonia violations (only if data is available)
-        if (posidoniaData && posidoniaData.features) {
-          // Check all posidonia features for comprehensive violation detection
-          for (const feature of posidoniaData.features) {
-            if (feature.geometry.type === "Polygon") {
-              const polygon = turf.polygon(feature.geometry.coordinates);
-
-              // Check if point is inside polygon
-              if (turf.booleanPointInPolygon(vesselPoint, polygon)) {
-                // Only consider it a violation if vessel is anchored (low speed)
-                // Use same threshold as violations engine: 0.5 knots
-                if (speed !== null && speed <= 0.5) {
-                  result.isOverPosidonia = true;
-                  result.posidoniaFeature = feature;
-                  result.distanceToNearestPosidonia = 0;
-                  break;
-                }
-              }
-
-              // Calculate distance to polygon for nearby analysis
-              try {
-                const distance = turf.distance(
-                  vesselPoint,
-                  turf.centerOfMass(polygon),
-                  { units: "meters" }
-                );
-                if (distance < result.distanceToNearestPosidonia) {
-                  result.distanceToNearestPosidonia = distance;
-                }
-              } catch (distanceError) {
-                // Distance calculation can fail for complex geometries, continue
-                console.debug(
-                  "Distance calculation failed for feature:",
-                  distanceError
-                );
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.warn("Error in spatial analysis:", error);
-      }
-
-      return result;
-    },
-    [posidoniaData, parkBoundaries, bufferedBoundaries]
-  );
-
-  // Remove the old isOverPosidonia function since we're using analyzeVesselPosition directly
+  // Spatial analysis is now handled by the violations worker for consistency
 
   // Memoize vessel GeoJSON data to prevent expensive recalculations
   const vesselGeoJSON = useMemo(() => {
@@ -381,27 +282,25 @@ export default function MapComponent({
 
     return {
       type: "FeatureCollection" as const,
-      features: vessels.map((vessel) => {
-        const spatialAnalysis = analyzeVesselPosition(
-          vessel.latitude,
-          vessel.longitude,
-          vessel.vessel.speed ?? null
-        );
-
+      features: vessels.map((vessel, index) => {
+        // Use the unified spatial analysis and violation data from the worker
+        // No more duplicate spatial analysis here
         return {
           type: "Feature" as const,
+          id: vessel.vessel.mmsi || index, // Add unique ID for feature state
           geometry: {
             type: "Point" as const,
             coordinates: [vessel.longitude, vessel.latitude],
           },
           properties: {
             name: vessel.vessel.name,
-            isInPark: spatialAnalysis.isInPark,
-            isInBufferZone: spatialAnalysis.isInBufferZone,
-            isAnchoredOnPosidonia: spatialAnalysis.isOverPosidonia,
+            // Use spatial analysis results from the worker
+            isInPark: vessel.isInPark || false,
+            isInBufferZone: vessel.isInBufferZone || false,
+            isAnchoredOnPosidonia: vessel.isAnchoredOnPosidonia || false,
             distanceToNearestPosidonia:
-              spatialAnalysis.distanceToNearestPosidonia,
-            isNearPosidonia: spatialAnalysis.distanceToNearestPosidonia < 100, // Within 100m
+              vessel.distanceToNearestPosidonia || Infinity,
+            isNearPosidonia: vessel.isNearPosidonia || false,
             mmsi: vessel.vessel.mmsi,
             type: vessel.vessel.type,
             typeSpecific: vessel.vessel.type_specific,
@@ -413,11 +312,15 @@ export default function MapComponent({
             destination: vessel.vessel.destination,
             distance: vessel.vessel.distance,
             timestamp: vessel.timestamp,
+            // Use violations from the worker
+            violations: vessel.violations || [],
+            violationSeverity: vessel.violationSeverity || null,
+            violationColor: vessel.violationColor || null,
           },
         };
       }),
     };
-  }, [vessels, analyzeVesselPosition]);
+  }, [vessels]);
 
   // Handle map load
   const onMapLoad = useCallback(() => {
@@ -556,62 +459,121 @@ export default function MapComponent({
   }, [onMapReady, layerVisibility]);
 
   // Handle map clicks to detect vessel and posidonia clicks
-  const onMapClick = useCallback((event: mapboxgl.MapMouseEvent) => {
-    // Check for vessel clicks first
-    const vesselFeatures = event.target.queryRenderedFeatures(event.point, {
-      layers: ["vessels-circle", "vessels-icons"],
-    });
+  const onMapClick = useCallback(
+    (event: mapboxgl.MapMouseEvent) => {
+      const map = event.target;
 
-    if (vesselFeatures && vesselFeatures.length > 0) {
-      const feature = vesselFeatures[0];
-      const properties = feature.properties;
+      // Check which vessel layers exist before querying
+      const vesselLayers = [
+        "vessels-circle",
+        "vessels-icons",
+        "vessels-violation-indicators",
+      ].filter((layer) => map.getLayer(layer));
 
-      if (!properties) return;
+      // Check for vessel clicks first (only if layers exist)
+      const vesselFeatures =
+        vesselLayers.length > 0
+          ? map.queryRenderedFeatures(event.point, { layers: vesselLayers })
+          : [];
 
-      const coordinates = (feature.geometry as GeoJSON.Point).coordinates as [
-        number,
-        number
-      ];
-      MapPopupControl.createVesselPopup(
-        mapRef.current!.getMap(),
-        [coordinates[0], coordinates[1]],
-        properties as unknown as VesselProperties
-      );
-      return;
-    }
+      if (vesselFeatures && vesselFeatures.length > 0) {
+        const feature = vesselFeatures[0];
+        const properties = feature.properties;
 
-    // Check for posidonia bed clicks
-    const posidoniaFeatures = event.target.queryRenderedFeatures(event.point, {
-      layers: [
+        if (!properties) return;
+
+        const coordinates = (feature.geometry as GeoJSON.Point).coordinates as [
+          number,
+          number
+        ];
+
+        // Clear previous selection
+        if (selectedVesselId) {
+          map.setFeatureState(
+            { source: "vessels", id: selectedVesselId },
+            { selected: false }
+          );
+        }
+
+        // Set new selection
+        const vesselId = String(feature.id || properties.mmsi);
+        map.setFeatureState(
+          { source: "vessels", id: vesselId },
+          { selected: true }
+        );
+        setSelectedVesselId(vesselId);
+
+        if (isMobile) {
+          // On mobile, show bottom panel
+          setSelectedVessel(properties as unknown as VesselProperties);
+          setIsMobilePanelOpen(true);
+        } else {
+          // On desktop, show popup
+          MapPopupControl.createVesselPopup(
+            mapRef.current!.getMap(),
+            [coordinates[0], coordinates[1]],
+            properties as unknown as VesselProperties
+          );
+        }
+        return;
+      }
+
+      // Check which posidonia layers exist before querying
+      const posidoniaLayers = [
         "posidonia-healthy-fill",
         "posidonia-degraded-fill",
         "posidonia-dead-fill",
         "posidonia-standard-fill",
-      ],
-    });
+      ].filter((layer) => map.getLayer(layer));
 
-    if (posidoniaFeatures && posidoniaFeatures.length > 0) {
-      const feature = posidoniaFeatures[0];
-      const properties = feature.properties;
+      // Check for posidonia bed clicks (only if layers exist)
+      const posidoniaFeatures =
+        posidoniaLayers.length > 0
+          ? map.queryRenderedFeatures(event.point, { layers: posidoniaLayers })
+          : [];
 
-      if (!properties) return;
+      if (posidoniaFeatures && posidoniaFeatures.length > 0) {
+        const feature = posidoniaFeatures[0];
+        const properties = feature.properties;
 
-      // Get centroid of clicked polygon for popup placement
-      const geometry = feature.geometry as GeoJSON.Polygon;
-      const coordinates = geometry.coordinates[0];
-      const centroid = calculatePolygonCentroid(coordinates);
+        if (!properties) return;
 
-      MapPopupControl.createPosidoniaPopup(
-        mapRef.current!.getMap(),
-        centroid,
-        properties
-      );
-      return;
-    }
+        if (isMobile) {
+          // On mobile, open the Posidonia panel
+          setSelectedPosidonia(feature);
+          setIsMobilePosidoniaOpen(true);
+        } else {
+          // On desktop, show popup
+          const geometry = feature.geometry as GeoJSON.Polygon;
+          const coordinates = geometry.coordinates[0];
+          const centroid = calculatePolygonCentroid(coordinates);
 
-    // Clicked on background: close any open popup
-    MapPopupControl.closeVesselPopup();
-  }, []);
+          MapPopupControl.createPosidoniaPopup(
+            mapRef.current!.getMap(),
+            centroid,
+            properties
+          );
+        }
+        return;
+      }
+
+      // Clicked on background: close any open popup/panel
+      MapPopupControl.closeVesselPopup();
+      setIsMobilePanelOpen(false);
+      setIsMobilePosidoniaOpen(false);
+      setSelectedVessel(null);
+
+      // Clear selected state
+      if (selectedVesselId) {
+        map.setFeatureState(
+          { source: "vessels", id: selectedVesselId },
+          { selected: false }
+        );
+        setSelectedVesselId(null);
+      }
+    },
+    [isMobile, selectedVesselId]
+  );
 
   // Helper function to calculate polygon centroid
   const calculatePolygonCentroid = (
@@ -629,30 +591,79 @@ export default function MapComponent({
     return [sumLon / count, sumLat / count];
   };
 
-  // Handle cursor changes for vessel and posidonia hovers
-  const onMouseMove = useCallback((event: mapboxgl.MapMouseEvent) => {
-    const vesselFeatures = event.target.queryRenderedFeatures(event.point, {
-      layers: ["vessels-circle", "vessels-icons"],
-    });
+  // Handle cursor changes and hover effects for vessels and posidonia
+  const onMouseMove = useCallback(
+    (event: mapboxgl.MapMouseEvent) => {
+      const map = event.target;
 
-    const posidoniaFeatures = event.target.queryRenderedFeatures(event.point, {
-      layers: [
+      // Check which layers exist before querying
+      const vesselLayers = [
+        "vessels-circle",
+        "vessels-icons",
+        "vessels-violation-indicators",
+      ].filter((layer) => map.getLayer(layer));
+
+      const posidoniaLayers = [
         "posidonia-healthy-fill",
         "posidonia-degraded-fill",
         "posidonia-dead-fill",
         "posidonia-standard-fill",
-      ],
-    });
+      ].filter((layer) => map.getLayer(layer));
 
-    if (
-      (vesselFeatures && vesselFeatures.length > 0) ||
-      (posidoniaFeatures && posidoniaFeatures.length > 0)
-    ) {
-      event.target.getCanvas().style.cursor = "pointer";
-    } else {
-      event.target.getCanvas().style.cursor = "";
-    }
-  }, []);
+      // Only query if layers exist
+      const vesselFeatures =
+        vesselLayers.length > 0
+          ? map.queryRenderedFeatures(event.point, { layers: vesselLayers })
+          : [];
+
+      const posidoniaFeatures =
+        posidoniaLayers.length > 0
+          ? map.queryRenderedFeatures(event.point, { layers: posidoniaLayers })
+          : [];
+
+      // Handle vessel hover states
+      if (vesselFeatures && vesselFeatures.length > 0) {
+        const feature = vesselFeatures[0];
+        const vesselId = String(feature.id || feature.properties?.mmsi);
+
+        if (vesselId && vesselId !== hoveredVesselId) {
+          // Clear previous hover state
+          if (hoveredVesselId) {
+            map.setFeatureState(
+              { source: "vessels", id: hoveredVesselId },
+              { hover: false }
+            );
+          }
+
+          // Set new hover state
+          map.setFeatureState(
+            { source: "vessels", id: vesselId },
+            { hover: true }
+          );
+
+          setHoveredVesselId(vesselId);
+        }
+
+        map.getCanvas().style.cursor = "pointer";
+      } else {
+        // Clear hover state when not over vessel
+        if (hoveredVesselId) {
+          map.setFeatureState(
+            { source: "vessels", id: hoveredVesselId },
+            { hover: false }
+          );
+          setHoveredVesselId(null);
+        }
+
+        if (posidoniaFeatures && posidoniaFeatures.length > 0) {
+          map.getCanvas().style.cursor = "pointer";
+        } else {
+          map.getCanvas().style.cursor = "";
+        }
+      }
+    },
+    [hoveredVesselId]
+  );
 
   return (
     <div className="map-container">
@@ -669,8 +680,8 @@ export default function MapComponent({
             longitude: 9.4167,
             latitude: 41.2167,
             zoom: 10,
-            pitch: 45,
-            bearing: -17.6,
+            pitch: 0,
+            bearing: 0,
           }}
           projection="globe"
           style={{ width: "100%", height: "100%" }}
@@ -1094,125 +1105,207 @@ export default function MapComponent({
           )}
 
           {/* Vessel Markers - Rendered last to ensure they appear on top */}
-          {vesselGeoJSON.features.length > 0 && (
-            <Source
-              key="vessels-top-layer"
-              id="vessels"
-              type="geojson"
-              data={vesselGeoJSON}
-            >
-              <Layer
-                id="vessels-circle"
-                type="circle"
-                layout={{
-                  visibility: layerVisibility.vessels ? "visible" : "none",
-                }}
-                paint={{
-                  "circle-radius": 10,
-                  "circle-color": [
+          <Source
+            key="vessels-top-layer"
+            id="vessels"
+            type="geojson"
+            data={vesselGeoJSON}
+            generateId={true}
+          >
+            <Layer
+              id="vessels-circle"
+              type="circle"
+              layout={{
+                visibility: layerVisibility.vessels ? "visible" : "none",
+              }}
+              paint={{
+                "circle-radius": [
+                  "case",
+                  ["boolean", ["feature-state", "hover"], false],
+                  13,
+                  ["boolean", ["feature-state", "selected"], false],
+                  13,
+                  10,
+                ],
+                "circle-color": [
+                  "case",
+                  // Highest priority: Anchored on posidonia = RED
+                  ["get", "isAnchoredOnPosidonia"],
+                  "#dc2626",
+                  // Second priority: Violation color if available
+                  ["has", "violationColor"],
+                  ["get", "violationColor"],
+                  // Default: Other statuses
+                  [
                     "case",
-                    // Highest priority: Anchored on posidonia = RED
-                    ["get", "isAnchoredOnPosidonia"],
+                    ["get", "isInPark"],
+                    "#0ea5e9",
+                    ["get", "isInBufferZone"],
+                    "#f59e0b",
+                    "#86efac",
+                  ],
+                ],
+                "circle-stroke-color": [
+                  "case",
+                  ["boolean", ["feature-state", "selected"], false],
+                  "#fde047",
+                  ["boolean", ["feature-state", "hover"], false],
+                  "#ffffff",
+                  "#ffffff",
+                ],
+                "circle-stroke-width": [
+                  "case",
+                  ["boolean", ["feature-state", "selected"], false],
+                  5,
+                  ["boolean", ["feature-state", "hover"], false],
+                  4,
+                  2,
+                ],
+                "circle-stroke-opacity": [
+                  "case",
+                  ["boolean", ["feature-state", "selected"], false],
+                  1,
+                  ["boolean", ["feature-state", "hover"], false],
+                  0.9,
+                  0.7,
+                ],
+                "circle-opacity": [
+                  "case",
+                  ["boolean", ["feature-state", "hover"], false],
+                  1,
+                  0.85,
+                ],
+                "circle-pitch-alignment": "map",
+                "circle-pitch-scale": "map",
+              }}
+            />
+            <Layer
+              id="vessels-icons"
+              type="symbol"
+              layout={{
+                visibility: layerVisibility.vessels ? "visible" : "none",
+                "icon-image": "boat-icon",
+                "icon-size": 0.7,
+                "icon-allow-overlap": true,
+                "icon-ignore-placement": true,
+                "icon-rotation-alignment": "map",
+                "symbol-z-order": "source",
+              }}
+              paint={{
+                "icon-opacity": [
+                  "case",
+                  ["boolean", ["feature-state", "hover"], false],
+                  1.0,
+                  ["boolean", ["feature-state", "selected"], false],
+                  0.95,
+                  0.9,
+                ],
+                "icon-color": [
+                  "case",
+                  // Highest priority: Anchored on posidonia = RED
+                  ["get", "isAnchoredOnPosidonia"],
+                  "#dc2626",
+                  // Second priority: Violation severity
+                  ["has", "violationSeverity"],
+                  [
+                    "case",
+                    ["==", ["get", "violationSeverity"], "critical"],
                     "#dc2626",
-                    // Second priority: Violation color if available
-                    ["has", "violationColor"],
-                    ["get", "violationColor"],
-                    // Default: Other statuses
-                    [
-                      "case",
-                      ["get", "isInPark"],
-                      "#0ea5e9",
-                      ["get", "isInBufferZone"],
-                      "#f59e0b",
-                      "#86efac",
-                    ],
+                    ["==", ["get", "violationSeverity"], "high"],
+                    "#ef4444",
+                    ["==", ["get", "violationSeverity"], "medium"],
+                    "#f59e0b",
+                    ["==", ["get", "violationSeverity"], "low"],
+                    "#10b981",
+                    "#86efac",
                   ],
-                  "circle-stroke-color": "#ffffff",
-                  "circle-stroke-width": 2.5,
-                  "circle-pitch-alignment": "map",
-                  "circle-pitch-scale": "map",
-                }}
-              />
-              <Layer
-                id="vessels-icons"
-                type="symbol"
-                layout={{
-                  visibility: layerVisibility.vessels ? "visible" : "none",
-                  "icon-image": "boat-icon",
-                  "icon-size": 0.7,
-                  "icon-allow-overlap": true,
-                  "icon-ignore-placement": true,
-                  "icon-rotation-alignment": "map",
-                  "symbol-z-order": "source",
-                }}
-                paint={{
-                  "icon-opacity": 1.0,
-                  "icon-color": [
+                  // Default: Other statuses
+                  [
                     "case",
-                    // Highest priority: Anchored on posidonia = RED
+                    ["get", "isInPark"],
+                    "#0ea5e9",
+                    ["get", "isInBufferZone"],
+                    "#f59e0b",
+                    "#86efac",
+                  ],
+                ],
+              }}
+            />
+            <Layer
+              id="vessels-labels"
+              type="symbol"
+              layout={{
+                visibility: layerVisibility.vessels ? "visible" : "none",
+                "text-field": ["get", "name"],
+                "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+                "text-offset": [0, -3],
+                "text-anchor": "bottom",
+                "text-size": 13,
+                "text-allow-overlap": false,
+                "symbol-z-order": "source",
+              }}
+              paint={{
+                "text-color": [
+                  "case",
+                  ["has", "violationColor"],
+                  ["get", "violationColor"],
+                  [
+                    "case",
                     ["get", "isAnchoredOnPosidonia"],
-                    "#dc2626",
-                    // Second priority: Violation severity
-                    ["has", "violationSeverity"],
-                    [
-                      "case",
-                      ["==", ["get", "violationSeverity"], "critical"],
-                      "#dc2626",
-                      ["==", ["get", "violationSeverity"], "high"],
-                      "#ef4444",
-                      ["==", ["get", "violationSeverity"], "medium"],
-                      "#f59e0b",
-                      ["==", ["get", "violationSeverity"], "low"],
-                      "#10b981",
-                      "#86efac",
-                    ],
-                    // Default: Other statuses
-                    [
-                      "case",
-                      ["get", "isInPark"],
-                      "#0ea5e9",
-                      ["get", "isInBufferZone"],
-                      "#f59e0b",
-                      "#86efac",
-                    ],
+                    "#10b981",
+                    ["get", "isInPark"],
+                    "#059669",
+                    ["get", "isInBufferZone"],
+                    "#f59e0b",
+                    "#7dd3fc",
                   ],
-                }}
-              />
-              <Layer
-                id="vessels-labels"
-                type="symbol"
-                layout={{
-                  visibility: layerVisibility.vessels ? "visible" : "none",
-                  "text-field": ["get", "name"],
-                  "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
-                  "text-offset": [0, -3],
-                  "text-anchor": "bottom",
-                  "text-size": 13,
-                  "text-allow-overlap": false,
-                  "symbol-z-order": "source",
-                }}
-                paint={{
-                  "text-color": [
+                ],
+                "text-halo-color": "#000000",
+                "text-halo-width": 2,
+              }}
+            />
+            <Layer
+              id="vessels-violation-indicators"
+              type="symbol"
+              layout={{
+                visibility: layerVisibility.vessels ? "visible" : "none",
+                "text-field": [
+                  "case",
+                  [">", ["length", ["get", "violations"]], 0],
+                  [
                     "case",
-                    ["has", "violationColor"],
-                    ["get", "violationColor"],
-                    [
-                      "case",
-                      ["get", "isAnchoredOnPosidonia"],
-                      "#10b981",
-                      ["get", "isInPark"],
-                      "#059669",
-                      ["get", "isInBufferZone"],
-                      "#f59e0b",
-                      "#7dd3fc",
-                    ],
+                    ["==", ["get", "violationSeverity"], "critical"],
+                    "⚠",
+                    ["==", ["get", "violationSeverity"], "high"],
+                    "⚠",
+                    ["==", ["get", "violationSeverity"], "medium"],
+                    "⚠",
+                    ["==", ["get", "violationSeverity"], "low"],
+                    "⚠",
+                    "⚠",
                   ],
-                  "text-halo-color": "#000000",
-                  "text-halo-width": 2,
-                }}
-              />
-            </Source>
-          )}
+                  "",
+                ],
+                "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+                "text-offset": [0, -2.5],
+                "text-anchor": "center",
+                "text-size": 16,
+                "text-allow-overlap": true,
+                "text-ignore-placement": true,
+                "symbol-z-order": "source",
+              }}
+              paint={{
+                "text-opacity": [
+                  "case",
+                  [">", ["length", ["get", "violations"]], 0],
+                  1.0,
+                  0.0,
+                ],
+                "text-halo-color": "#000000",
+                "text-halo-width": 1.5,
+              }}
+            />
+          </Source>
         </Map>
       </motion.div>
 
@@ -1236,6 +1329,36 @@ export default function MapComponent({
           </div>
         </motion.div>
       )}
+
+      {/* Mobile Vessel Panel */}
+      <MobileVesselPanel
+        vessel={selectedVessel}
+        isOpen={isMobilePanelOpen}
+        onClose={() => {
+          setIsMobilePanelOpen(false);
+          setSelectedVessel(null);
+
+          // Clear selected state when closing panel
+          if (selectedVesselId && mapRef.current) {
+            const map = mapRef.current.getMap();
+            map.setFeatureState(
+              { source: "vessels", id: selectedVesselId },
+              { selected: false }
+            );
+            setSelectedVesselId(null);
+          }
+        }}
+      />
+
+      {/* Mobile Posidonia Panel */}
+      <MobilePosidoniaPanel
+        isOpen={isMobilePosidoniaOpen}
+        onClose={() => {
+          setIsMobilePosidoniaOpen(false);
+          setSelectedPosidonia(null);
+        }}
+        posidoniaData={selectedPosidonia}
+      />
     </div>
   );
 }
