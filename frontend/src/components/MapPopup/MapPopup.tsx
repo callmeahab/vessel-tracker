@@ -1,6 +1,7 @@
 import mapboxgl from "mapbox-gl";
 
 export interface VesselProperties {
+  uuid?: string;
   name: string;
   isInPark: boolean;
   isInBufferZone?: boolean;
@@ -599,6 +600,7 @@ export class MapPopupControl {
             ${this.generateTimestamp(properties.timestamp)}
           </div>
         </div>
+        ${this.generateActionButtons(properties)}
       </div>
     `;
   }
@@ -620,6 +622,7 @@ export class MapPopupControl {
           ${fields.join("")}
           ${this.generateTimestamp(properties.timestamp)}
         </div>
+        ${this.generateActionButtons(properties)}
       </div>
     `;
   }
@@ -992,6 +995,75 @@ export class MapPopupControl {
           Violations (${violations.length})
         </div>
         ${violationItems}
+      </div>
+    `;
+  }
+
+  /**
+   * Generates action buttons section for Previous Positions and Track Vessel
+   */
+  private static generateActionButtons(properties: VesselProperties): string {
+    const mmsi = properties.mmsi || 'unknown';
+    const vesselName = properties.vesselName || 'Unknown Vessel';
+
+    return `
+      <div style="
+        padding: 16px;
+        margin-top: 8px;
+        border-top: 1px solid rgba(0, 0, 0, 0.1);
+      ">
+        <div style="
+          display: flex;
+          gap: 12px;
+          flex-direction: row;
+        ">
+          <button
+            id="prev-positions-btn-${mmsi}"
+            style="
+              flex: 1;
+              padding: 8px 16px;
+              background: linear-gradient(135deg, #2563eb, #1d4ed8);
+              color: white;
+              border: none;
+              border-radius: 8px;
+              font-size: 14px;
+              font-weight: 500;
+              cursor: pointer;
+              transition: all 0.2s ease;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            "
+            onmouseover="this.style.background='linear-gradient(135deg, #1d4ed8, #1e40af)'"
+            onmouseout="this.style.background='linear-gradient(135deg, #2563eb, #1d4ed8)'"
+            onclick="window.handleMapPopupPreviousPositions && window.handleMapPopupPreviousPositions('${mmsi}', '${vesselName.replace(/'/g, "\\'")}')">
+            Previous Positions
+          </button>
+          <button
+            id="track-vessel-btn-${mmsi}"
+            style="
+              flex: 1;
+              padding: 8px 16px;
+              background: linear-gradient(135deg, #dc2626, #b91c1c);
+              color: white;
+              border: none;
+              border-radius: 8px;
+              font-size: 14px;
+              font-weight: 500;
+              cursor: pointer;
+              transition: all 0.2s ease;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            "
+            onmouseover="this.style.background='linear-gradient(135deg, #b91c1c, #991b1b)'"
+            onmouseout="this.style.background='linear-gradient(135deg, #dc2626, #b91c1c)'"
+            onclick="window.handleMapPopupTrackVessel && window.handleMapPopupTrackVessel('${mmsi}', '${vesselName.replace(/'/g, "\\'")}')">
+            Track Vessel
+          </button>
+        </div>
       </div>
     `;
   }

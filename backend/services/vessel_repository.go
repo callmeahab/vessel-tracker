@@ -148,6 +148,45 @@ func (r *VesselRepository) GetVesselHistory(vesselUUID string, startTime, endTim
 	return positions, err
 }
 
+// StoreVessel stores or updates a single vessel record
+func (r *VesselRepository) StoreVessel(vessel *models.VesselRecord) error {
+	// Use GORM's FirstOrCreate to either create or update
+	err := r.db.Where("uuid = ?", vessel.UUID).FirstOrCreate(vessel).Error
+	if err != nil {
+		return fmt.Errorf("failed to store vessel: %w", err)
+	}
+
+	// If vessel already exists, update it
+	if vessel.ID != 0 {
+		err = r.db.Save(vessel).Error
+		if err != nil {
+			return fmt.Errorf("failed to update vessel: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// StoreVesselPosition stores a single vessel position record
+func (r *VesselRepository) StoreVesselPosition(position *models.VesselPositionRecord) error {
+	// Check if a position with the same vessel_uuid and last_pos_epoch already exists
+	var existingPosition models.VesselPositionRecord
+	err := r.db.Where("vessel_uuid = ? AND last_position_epoch = ?", position.VesselUUID, position.LastPosEpoch).First(&existingPosition).Error
+
+	if err == gorm.ErrRecordNotFound {
+		// Position doesn't exist, create new one
+		err = r.db.Create(position).Error
+		if err != nil {
+			return fmt.Errorf("failed to create vessel position: %w", err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("failed to check existing position: %w", err)
+	}
+	// If position already exists, we skip it (no update needed for historical data)
+
+	return nil
+}
+
 func (r *VesselRepository) GetAvailableTimeRange() (time.Time, time.Time, error) {
 	var earliest, latest time.Time
 

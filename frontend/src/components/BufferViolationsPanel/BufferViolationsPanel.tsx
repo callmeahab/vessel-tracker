@@ -3,14 +3,15 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useMemo, useCallback } from "react";
 import { VesselData } from "@/types/vessel";
-import { MdCheckCircle, MdLocationOn, MdWarning } from "react-icons/md";
+import { MdCheckCircle, MdLocationOn, MdWarning, MdRadar } from "react-icons/md";
 
 interface BufferViolationsPanelProps {
   vessels: VesselData[];
   isOpen: boolean;
   onClose: () => void;
   onVesselClick?: (vessel: VesselData) => void;
-  onTrackHistory?: (vesselUuid: string, vesselName: string) => void;
+  onShowPreviousPositions?: (vesselUuid: string, vesselName: string) => void;
+  onTrackVessel?: (vesselUuid: string, vesselName: string) => void;
 }
 
 export default function BufferViolationsPanel({
@@ -18,7 +19,8 @@ export default function BufferViolationsPanel({
   isOpen,
   onClose,
   onVesselClick,
-  onTrackHistory,
+  onShowPreviousPositions,
+  onTrackVessel,
 }: BufferViolationsPanelProps) {
   // Memoize filtered vessel data to prevent expensive recalculations
   const vesselData = useMemo(() => {
@@ -45,11 +47,18 @@ export default function BufferViolationsPanel({
     };
   }, [vessels]);
 
-  const handleTrackHistory = useCallback(
+  const handleShowPreviousPositions = useCallback(
     (uuid: string, name: string) => {
-      onTrackHistory?.(uuid, name);
+      onShowPreviousPositions?.(uuid, name);
     },
-    [onTrackHistory]
+    [onShowPreviousPositions]
+  );
+
+  const handleTrackVessel = useCallback(
+    (uuid: string, name: string) => {
+      onTrackVessel?.(uuid, name);
+    },
+    [onTrackVessel]
   );
 
   return (
@@ -138,19 +147,37 @@ export default function BufferViolationsPanel({
                             <p className="text-xs text-white font-medium text-shadow-sm">
                               🌿 Anchoring on protected seagrass beds
                             </p>
-                            {vessel.vessel.uuid && onTrackHistory && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleTrackHistory(
-                                    vessel.vessel.uuid!,
-                                    vessel.vessel.name
-                                  );
-                                }}
-                                className="w-full mt-2 px-3 py-2 glass-ocean rounded-md text-white text-xs font-medium hover:bg-white/30 transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
-                              >
-                                <MdLocationOn className="inline mr-1" /> Track History
-                              </button>
+                            {vessel.vessel.uuid && (onShowPreviousPositions || onTrackVessel) && (
+                              <div className="mt-2 flex gap-2">
+                                {onShowPreviousPositions && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleShowPreviousPositions(
+                                        vessel.vessel.uuid!,
+                                        vessel.vessel.name
+                                      );
+                                    }}
+                                    className="flex-1 px-3 py-2 glass-ocean rounded-md text-white text-xs font-medium hover:bg-white/30 transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
+                                  >
+                                    <MdLocationOn className="inline mr-1" /> Previous Positions
+                                  </button>
+                                )}
+                                {onTrackVessel && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleTrackVessel(
+                                        vessel.vessel.uuid!,
+                                        vessel.vessel.name
+                                      );
+                                    }}
+                                    className="flex-1 px-3 py-2 glass-coral rounded-md text-white text-xs font-medium hover:bg-white/30 transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
+                                  >
+                                    <MdRadar className="inline mr-1" /> Track Vessel
+                                  </button>
+                                )}
+                              </div>
                             )}
                           </div>
                         ))}
@@ -191,19 +218,37 @@ export default function BufferViolationsPanel({
                               <MdWarning className="inline mr-1" /> Too close to protected area (within 100m
                               buffer)
                             </p>
-                            {vessel.vessel.uuid && onTrackHistory && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleTrackHistory(
-                                    vessel.vessel.uuid!,
-                                    vessel.vessel.name
-                                  );
-                                }}
-                                className="w-full mt-2 px-3 py-2 glass-ocean rounded-md text-white text-xs font-medium hover:bg-white/30 transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
-                              >
-                                <MdLocationOn className="inline mr-1" /> Track History
-                              </button>
+                            {vessel.vessel.uuid && (onShowPreviousPositions || onTrackVessel) && (
+                              <div className="mt-2 flex gap-2">
+                                {onShowPreviousPositions && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleShowPreviousPositions(
+                                        vessel.vessel.uuid!,
+                                        vessel.vessel.name
+                                      );
+                                    }}
+                                    className="flex-1 px-3 py-2 glass-ocean rounded-md text-white text-xs font-medium hover:bg-white/30 transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
+                                  >
+                                    <MdLocationOn className="inline mr-1" /> Previous Positions
+                                  </button>
+                                )}
+                                {onTrackVessel && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleTrackVessel(
+                                        vessel.vessel.uuid!,
+                                        vessel.vessel.name
+                                      );
+                                    }}
+                                    className="flex-1 px-3 py-2 glass-coral rounded-md text-white text-xs font-medium hover:bg-white/30 transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
+                                  >
+                                    <MdRadar className="inline mr-1" /> Track Vessel
+                                  </button>
+                                )}
+                              </div>
                             )}
                           </div>
                         ))}
@@ -245,19 +290,37 @@ export default function BufferViolationsPanel({
                                 <MdCheckCircle className="inline mr-1 text-green-400" /> {vessel.whitelist_info.reason}
                               </p>
                             )}
-                            {vessel.vessel.uuid && onTrackHistory && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleTrackHistory(
-                                    vessel.vessel.uuid!,
-                                    vessel.vessel.name
-                                  );
-                                }}
-                                className="w-full mt-2 px-3 py-2 glass-ocean rounded-md text-white text-xs font-medium hover:bg-white/30 transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
-                              >
-                                <MdLocationOn className="inline mr-1" /> Track History
-                              </button>
+                            {vessel.vessel.uuid && (onShowPreviousPositions || onTrackVessel) && (
+                              <div className="mt-2 flex gap-2">
+                                {onShowPreviousPositions && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleShowPreviousPositions(
+                                        vessel.vessel.uuid!,
+                                        vessel.vessel.name
+                                      );
+                                    }}
+                                    className="flex-1 px-3 py-2 glass-ocean rounded-md text-white text-xs font-medium hover:bg-white/30 transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
+                                  >
+                                    <MdLocationOn className="inline mr-1" /> Previous Positions
+                                  </button>
+                                )}
+                                {onTrackVessel && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleTrackVessel(
+                                        vessel.vessel.uuid!,
+                                        vessel.vessel.name
+                                      );
+                                    }}
+                                    className="flex-1 px-3 py-2 glass-coral rounded-md text-white text-xs font-medium hover:bg-white/30 transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
+                                  >
+                                    <MdRadar className="inline mr-1" /> Track Vessel
+                                  </button>
+                                )}
+                              </div>
                             )}
                           </div>
                         ))}
@@ -293,19 +356,37 @@ export default function BufferViolationsPanel({
                               {vessel.latitude.toFixed(4)},{" "}
                               {vessel.longitude.toFixed(4)}
                             </p>
-                            {vessel.vessel.uuid && onTrackHistory && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleTrackHistory(
-                                    vessel.vessel.uuid!,
-                                    vessel.vessel.name
-                                  );
-                                }}
-                                className="w-full mt-2 px-3 py-2 glass-ocean rounded-md text-white text-xs font-medium hover:bg-white/30 transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
-                              >
-                                <MdLocationOn className="inline mr-1" /> Track History
-                              </button>
+                            {vessel.vessel.uuid && (onShowPreviousPositions || onTrackVessel) && (
+                              <div className="mt-2 flex gap-2">
+                                {onShowPreviousPositions && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleShowPreviousPositions(
+                                        vessel.vessel.uuid!,
+                                        vessel.vessel.name
+                                      );
+                                    }}
+                                    className="flex-1 px-3 py-2 glass-ocean rounded-md text-white text-xs font-medium hover:bg-white/30 transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
+                                  >
+                                    <MdLocationOn className="inline mr-1" /> Previous Positions
+                                  </button>
+                                )}
+                                {onTrackVessel && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleTrackVessel(
+                                        vessel.vessel.uuid!,
+                                        vessel.vessel.name
+                                      );
+                                    }}
+                                    className="flex-1 px-3 py-2 glass-coral rounded-md text-white text-xs font-medium hover:bg-white/30 transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
+                                  >
+                                    <MdRadar className="inline mr-1" /> Track Vessel
+                                  </button>
+                                )}
+                              </div>
                             )}
                           </div>
                         ))}

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+	"vessel-tracker/models"
 	"vessel-tracker/services"
 
 	"github.com/gin-gonic/gin"
@@ -391,7 +392,8 @@ func (h *VesselHandler) GetVesselsInParkAtTime(c *gin.Context) {
 	})
 }
 
-func (h *VesselHandler) GetVesselHistory(c *gin.Context) {
+// GetPreviousPositions returns previous positions from local database (renamed from GetVesselHistory)
+func (h *VesselHandler) GetPreviousPositions(c *gin.Context) {
 	vesselUUID := c.Param("uuid")
 	if vesselUUID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -407,7 +409,7 @@ func (h *VesselHandler) GetVesselHistory(c *gin.Context) {
 
 	var startTime, endTime time.Time
 	var err error
-	limit := 0 // No default limit - return all history
+	limit := 100 // Default limit to 100 positions for markers
 
 	if startTimeStr != "" {
 		startTime, err = time.Parse(time.RFC3339, startTimeStr)
@@ -446,15 +448,16 @@ func (h *VesselHandler) GetVesselHistory(c *gin.Context) {
 	positions, err := h.vesselRepo.GetVesselHistory(vesselUUID, startTime, endTime, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to fetch vessel history",
+			"error": "Failed to fetch previous positions",
 			"details": err.Error(),
 		})
 		return
 	}
 
-	var history []gin.H
+	// Return positions as markers (no line connections)
+	var previousPositions []gin.H
 	for _, pos := range positions {
-		historyEntry := gin.H{
+		positionEntry := gin.H{
 			"latitude":      pos.Latitude,
 			"longitude":     pos.Longitude,
 			"speed":         pos.Speed,
@@ -466,15 +469,128 @@ func (h *VesselHandler) GetVesselHistory(c *gin.Context) {
 			"timestamp":     pos.LastPosUTC,
 			"recorded_at":   pos.RecordedAt,
 		}
-		history = append(history, historyEntry)
+		previousPositions = append(previousPositions, positionEntry)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"vessel_uuid": vesselUUID,
-		"history":     history,
-		"count":       len(history),
-		"start_time":  startTimeStr,
-		"end_time":    endTimeStr,
-		"limit":       limit,
+		"vessel_uuid":        vesselUUID,
+		"previous_positions": previousPositions,
+		"count":             len(previousPositions),
+		"start_time":        startTimeStr,
+		"end_time":          endTimeStr,
+		"limit":             limit,
+	})
+}
+
+// GetVesselHistoricalData fetches historical data from Datalastic API
+func (h *VesselHandler) GetVesselHistoricalData(c *gin.Context) {
+	// Get vessel identifier (can be uuid, mmsi, or imo)
+	uuid := c.Query("uuid")
+	mmsi := c.Query("mmsi")
+	imo := c.Query("imo")
+
+	if uuid == "" && mmsi == "" && imo == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "At least one vessel identifier (uuid, mmsi, or imo) is required",
+		})
+		return
+	}
+
+	// Build parameters for Datalastic API
+	params := make(map[string]string)
+	if uuid != "" {
+		params["uuid"] = uuid
+	}
+	if mmsi != "" {
+		params["mmsi"] = mmsi
+	}
+	if imo != "" {
+		params["imo"] = imo
+	}
+
+	// Handle time range parameters
+	days := c.Query("days")
+	from := c.Query("from")
+	to := c.Query("to")
+
+	if days != "" {
+		params["days"] = days
+	} else if from != "" && to != "" {
+		params["from"] = from
+		params["to"] = to
+	} else {
+		// Default to last 2 days if no time range specified
+		params["days"] = "2"
+	}
+
+	// Fetch from Datalastic API
+	historyResp, err := h.vesselService.GetVesselHistoryFromAPI(params)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to fetch historical data from Datalastic",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Store the historical positions in database for future use
+	if historyResp.Data.UUID != "" && len(historyResp.Data.Positions) > 0 {
+		// Store vessel info if not exists
+		vessel := &models.VesselRecord{
+			UUID:         historyResp.Data.UUID,
+			Name:         historyResp.Data.Name,
+			MMSI:         historyResp.Data.MMSI,
+			IMO:          historyResp.Data.IMO,
+			ENI:          historyResp.Data.ENI,
+			CountryISO:   historyResp.Data.CountryISO,
+			Type:         historyResp.Data.Type,
+			TypeSpecific: historyResp.Data.TypeSpecific,
+		}
+
+		// Store vessel (will update if exists)
+		err = h.vesselRepo.StoreVessel(vessel)
+		if err != nil {
+			// Log error but don't fail the request
+			println("Warning: Failed to store vessel:", err.Error())
+		}
+
+		// Store historical positions
+		for _, pos := range historyResp.Data.Positions {
+			positionRecord := &models.VesselPositionRecord{
+				VesselUUID:   historyResp.Data.UUID,
+				Latitude:     pos.Latitude,
+				Longitude:    pos.Longitude,
+				Speed:        pos.Speed,
+				Course:       pos.Course,
+				Heading:      pos.Heading,
+				Destination:  pos.Destination,
+				LastPosEpoch: pos.LastPositionEpoch,
+				LastPosUTC:   pos.LastPositionUTC,
+				IsInPark:     h.geoService.IsPointInPark(pos.Latitude, pos.Longitude),
+				RecordedAt:   time.Unix(pos.LastPositionEpoch, 0),
+			}
+
+			err = h.vesselRepo.StoreVesselPosition(positionRecord)
+			if err != nil {
+				// Log error but continue storing other positions
+				println("Warning: Failed to store position:", err.Error())
+			}
+		}
+	}
+
+	// Return the historical data
+	c.JSON(http.StatusOK, gin.H{
+		"vessel": gin.H{
+			"uuid":          historyResp.Data.UUID,
+			"name":          historyResp.Data.Name,
+			"mmsi":          historyResp.Data.MMSI,
+			"imo":           historyResp.Data.IMO,
+			"country_iso":   historyResp.Data.CountryISO,
+			"type":          historyResp.Data.Type,
+			"type_specific": historyResp.Data.TypeSpecific,
+		},
+		"historical_positions": historyResp.Data.Positions,
+		"count":               len(historyResp.Data.Positions),
+		"source":              "datalastic",
 	})
 }

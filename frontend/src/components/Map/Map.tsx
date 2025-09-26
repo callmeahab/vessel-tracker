@@ -60,6 +60,8 @@ interface MapProps {
   onMapReady?: (map: mapboxgl.Map) => void;
   layerVisibility?: Record<string, boolean>;
   onLayerToggle?: (layerId: string, visible: boolean) => void;
+  onShowPreviousPositions?: (vesselUuid: string, vesselName: string) => void;
+  onTrackVessel?: (vesselUuid: string, vesselName: string) => void;
 }
 
 // Export the legend layers configuration for use by parent components
@@ -147,6 +149,8 @@ export default function MapComponent({
   loading,
   onMapReady,
   layerVisibility: externalLayerVisibility,
+  onShowPreviousPositions,
+  onTrackVessel,
 }: MapProps) {
   const mapRef = useRef<MapRef>(null);
   const mapLoadedRef = useRef(false);
@@ -268,6 +272,7 @@ export default function MapComponent({
       })
       .catch((err) => console.error("Failed to load posidonia data:", err));
   }, []);
+
 
   // Spatial analysis is now handled by the violations worker for consistency
 
@@ -503,18 +508,16 @@ export default function MapComponent({
         );
         setSelectedVesselId(vesselId);
 
-        if (isMobile) {
-          // On mobile, show bottom panel
-          setSelectedVessel(properties as unknown as VesselProperties);
-          setIsMobilePanelOpen(true);
-        } else {
-          // On desktop, show popup
-          MapPopupControl.createVesselPopup(
-            mapRef.current!.getMap(),
-            [coordinates[0], coordinates[1]],
-            properties as unknown as VesselProperties
-          );
-        }
+        // Always use panel for both mobile and desktop
+        // Find the original vessel data to get the UUID
+        const originalVessel = vessels.find(v => v.vessel?.mmsi === properties.mmsi);
+        const vesselWithUuid = {
+          ...properties,
+          uuid: originalVessel?.vessel?.uuid
+        } as unknown as VesselProperties;
+
+        setSelectedVessel(vesselWithUuid);
+        setIsMobilePanelOpen(true);
         return;
       }
 
@@ -1348,6 +1351,8 @@ export default function MapComponent({
             setSelectedVesselId(null);
           }
         }}
+        onShowPreviousPositions={onShowPreviousPositions}
+        onTrackVessel={onTrackVessel}
       />
 
       {/* Mobile Posidonia Panel */}

@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { VesselProperties } from "@/components/MapPopup/MapPopup";
+import { useEffect, useState } from "react";
 import {
   MdClose,
   MdLocationOn,
@@ -11,19 +12,37 @@ import {
   MdFlag,
   MdWarning,
   MdCheckCircle,
+  MdRadar,
 } from "react-icons/md";
 
 interface MobileVesselPanelProps {
   vessel: VesselProperties | null;
   isOpen: boolean;
   onClose: () => void;
+  onShowPreviousPositions?: (vesselUuid: string, vesselName: string) => void;
+  onTrackVessel?: (vesselUuid: string, vesselName: string) => void;
 }
 
 export default function MobileVesselPanel({
   vessel,
   isOpen,
   onClose,
+  onShowPreviousPositions,
+  onTrackVessel,
 }: MobileVesselPanelProps) {
+  const [isMobile, setIsMobile] = useState(true); // Default to mobile to avoid hydration issues
+
+  // Detect mobile on mount and resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
   if (!vessel) return null;
 
   // Handle violations that might be stringified by MapBox
@@ -53,23 +72,31 @@ export default function MobileVesselPanel({
 
           {/* Panel */}
           <motion.div
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
+            initial={{
+              y: isMobile ? "100%" : 0,
+              x: isMobile ? 0 : "100%"
+            }}
+            animate={{ y: 0, x: 0 }}
+            exit={{
+              y: isMobile ? "100%" : 0,
+              x: isMobile ? 0 : "100%"
+            }}
             transition={{
               type: "spring",
               stiffness: 300,
               damping: 30,
             }}
-            className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg rounded-t-3xl shadow-2xl max-h-[80vh] overflow-y-auto"
+            className="fixed z-50 bg-white/95 backdrop-blur-lg shadow-2xl overflow-y-auto
+                       bottom-0 left-0 right-0 rounded-t-3xl max-h-[80vh]
+                       md:top-0 md:right-0 md:bottom-0 md:left-auto md:w-96 md:rounded-l-3xl md:rounded-t-none md:max-h-none"
           >
-            {/* Handle */}
-            <div className="flex justify-center pt-2 pb-1">
+            {/* Handle - only show on mobile */}
+            <div className="flex justify-center pt-2 pb-1 md:hidden">
               <div className="w-12 h-1 bg-gray-300 rounded-full"></div>
             </div>
 
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200/50">
+            <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-200/50">
               <div className="flex items-center gap-3">
                 <div
                   className={`p-2 rounded-full ${
@@ -109,7 +136,7 @@ export default function MobileVesselPanel({
               </button>
             </div>
 
-            <div className="p-4 space-y-4">
+            <div className="p-4 md:p-6 space-y-4 md:space-y-6">
               {/* Violations Section */}
               {hasViolations ? (
                 <div className="bg-red-50 rounded-xl p-4 border border-red-200">
@@ -249,6 +276,40 @@ export default function MobileVesselPanel({
                     )}
                   </div>
                 )}
+
+              {/* Action Buttons */}
+              {(vessel.uuid || vessel.mmsi) && (onShowPreviousPositions || onTrackVessel) && (
+                <div className="flex gap-3 pt-4">
+                  {onShowPreviousPositions && (
+                    <button
+                      onClick={() => {
+                        const vesselId = vessel.uuid || vessel.mmsi;
+                        const vesselName = vessel.name || "Unknown Vessel";
+                        onShowPreviousPositions(vesselId, vesselName);
+                        onClose();
+                      }}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2"
+                    >
+                      <MdLocationOn className="text-base" />
+                      Previous Positions
+                    </button>
+                  )}
+                  {onTrackVessel && (
+                    <button
+                      onClick={() => {
+                        const vesselId = vessel.uuid || vessel.mmsi;
+                        const vesselName = vessel.name || "Unknown Vessel";
+                        onTrackVessel(vesselId, vesselName);
+                        onClose();
+                      }}
+                      className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2"
+                    >
+                      <MdRadar className="text-base" />
+                      Track Vessel
+                    </button>
+                  )}
+                </div>
+              )}
 
               {vessel.timestamp && (
                 <div className="text-center pt-2 border-t border-gray-200">

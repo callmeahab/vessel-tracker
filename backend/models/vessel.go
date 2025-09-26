@@ -142,3 +142,34 @@ type WhitelistEntry struct {
 
 	Vessel VesselRecord `gorm:"foreignKey:VesselUUID;references:UUID" json:"vessel,omitempty"`
 }
+
+// VesselHistoryPosition represents a historical position from Datalastic API
+type VesselHistoryPosition struct {
+	Latitude         float64 `json:"lat"`
+	Longitude        float64 `json:"lon"`
+	Speed            float64 `json:"speed"`
+	Course           float64 `json:"course"`
+	Heading          *int    `json:"heading"`
+	Destination      string  `json:"destination"`
+	LastPositionEpoch int64   `json:"last_position_epoch"`
+	LastPositionUTC  string  `json:"last_position_UTC"`
+}
+
+// VesselHistoryData represents vessel historical data from Datalastic API
+type VesselHistoryData struct {
+	UUID         string                  `json:"uuid"`
+	Name         string                  `json:"name"`
+	MMSI         string                  `json:"mmsi"`
+	IMO          string                  `json:"imo"`
+	ENI          *string                 `json:"eni"`
+	CountryISO   string                  `json:"country_iso"`
+	Type         string                  `json:"type"`
+	TypeSpecific string                  `json:"type_specific"`
+	Positions    []VesselHistoryPosition `json:"positions"`
+}
+
+// VesselHistoryResponse represents the response from vessel_history API
+type VesselHistoryResponse struct {
+	Data VesselHistoryData `json:"data"`
+	Meta Meta              `json:"meta"`
+}

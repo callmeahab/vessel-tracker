@@ -12,6 +12,7 @@ import {
   MdError,
   MdPriorityHigh,
   MdInfo,
+  MdRadar,
 } from "react-icons/md";
 import ViolationIcon from "@/components/ViolationIcon/ViolationIcon";
 
@@ -20,7 +21,8 @@ interface ViolationsPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onVesselClick?: (vessel: VesselData) => void;
-  onTrackHistory?: (vesselUuid: string, vesselName: string) => void;
+  onShowPreviousPositions?: (vesselUuid: string, vesselName: string) => void;
+  onTrackVessel?: (vesselUuid: string, vesselName: string) => void;
 }
 
 interface VesselWithViolations extends VesselData {
@@ -33,7 +35,8 @@ export default function ViolationsPanel({
   isOpen,
   onClose,
   onVesselClick,
-  onTrackHistory,
+  onShowPreviousPositions,
+  onTrackVessel,
 }: ViolationsPanelProps) {
   // Group vessels by violation severity - optimized
   const vesselsByViolation = useMemo(() => {
@@ -85,11 +88,18 @@ export default function ViolationsPanel({
     return result;
   }, [vessels, isOpen]);
 
-  const handleTrackHistory = useCallback(
+  const handleShowPreviousPositions = useCallback(
     (uuid: string, name: string) => {
-      onTrackHistory?.(uuid, name);
+      onShowPreviousPositions?.(uuid, name);
     },
-    [onTrackHistory]
+    [onShowPreviousPositions]
+  );
+
+  const handleTrackVessel = useCallback(
+    (uuid: string, name: string) => {
+      onTrackVessel?.(uuid, name);
+    },
+    [onTrackVessel]
   );
 
   const getSeverityColor = (severity: ViolationSeverity) => {
@@ -154,16 +164,31 @@ export default function ViolationsPanel({
           </div>
         )}
 
-        {vessel.vessel.uuid && onTrackHistory && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleTrackHistory(vessel.vessel.uuid!, vessel.vessel.name);
-            }}
-            className="w-full mt-3 px-3 py-2 glass-ocean rounded-md text-white text-xs font-medium hover:gradient-ocean-light transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
-          >
-            <MdLocationOn className="inline mr-1" /> Track History
-          </button>
+        {vessel.vessel.uuid && (onShowPreviousPositions || onTrackVessel) && (
+          <div className="mt-3 flex gap-2">
+            {onShowPreviousPositions && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleShowPreviousPositions(vessel.vessel.uuid!, vessel.vessel.name);
+                }}
+                className="flex-1 px-3 py-2 glass-ocean rounded-md text-white text-xs font-medium hover:gradient-ocean-light transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
+              >
+                <MdLocationOn className="inline mr-1" /> Previous Positions
+              </button>
+            )}
+            {onTrackVessel && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleTrackVessel(vessel.vessel.uuid!, vessel.vessel.name);
+                }}
+                className="flex-1 px-3 py-2 glass-coral rounded-md text-white text-xs font-medium hover:gradient-coral transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
+              >
+                <MdRadar className="inline mr-1" /> Track Vessel
+              </button>
+            )}
+          </div>
         )}
       </div>
     );

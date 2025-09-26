@@ -15,6 +15,8 @@ import ViolationsEngine, {
 import MaritimeLoader from "@/components/MaritimeLoader/MaritimeLoader";
 import { useViolationsWorker } from "@/hooks/useViolationsWorker";
 import ProcessingIndicator from "@/components/ProcessingIndicator/ProcessingIndicator";
+import NotificationContainer from "@/components/NotificationContainer/NotificationContainer";
+import { useNotifications } from "@/hooks/useNotifications";
 import { MdWarning } from "react-icons/md";
 
 export default function Home() {
@@ -51,6 +53,9 @@ export default function Home() {
   });
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+  // Notification system
+  const { notifications, addNotification, removeNotification } = useNotifications();
 
   // Progressive data fetching - non-blocking
   useEffect(() => {
@@ -345,82 +350,49 @@ export default function Home() {
     setViolationsPanelOpen(false);
   }, []);
 
-  const handleTrackHistory = useCallback(
+  const handleShowPreviousPositions = useCallback(
     async (vesselUuid: string, vesselName: string) => {
       try {
         setTrackingVessel({ uuid: vesselUuid, name: vesselName });
         // Close violations panel when tracking vessel
         setViolationsPanelOpen(false);
 
-        // Fetch vessel history from the last 7 days (no limit for full data)
+        // Fetch previous positions from the last 7 days
         const response = await fetch(
-          `${API_BASE_URL}/api/vessels/${vesselUuid}/history`
+          `${API_BASE_URL}/api/vessels/${vesselUuid}/previous-positions?limit=50`
         );
 
         if (response.ok) {
-          const historyData: VesselHistoryResponse = await response.json();
+          const positionData = await response.json();
 
           if (
-            historyData.history &&
-            historyData.history.length > 0 &&
+            positionData.previous_positions &&
+            positionData.previous_positions.length > 0 &&
             mapRef.current
           ) {
-            // Create path coordinates from history
-            const coordinates = historyData.history.map((entry) => [
+            // Create coordinates for previous positions (markers only, no lines)
+            const coordinates = positionData.previous_positions.map((entry: any) => [
               entry.longitude,
               entry.latitude,
             ]);
 
-            // Remove existing track if any
-            if (mapRef.current.getSource("vessel-track")) {
-              mapRef.current.removeLayer("vessel-track-line");
-              mapRef.current.removeLayer("vessel-track-points");
-              mapRef.current.removeSource("vessel-track");
+            // Remove existing previous positions if any
+            if (mapRef.current.getSource("previous-positions")) {
+              mapRef.current.removeLayer("previous-positions-markers");
+              mapRef.current.removeSource("previous-positions");
             }
 
-            // Add vessel track source and layers
-            mapRef.current.addSource("vessel-track", {
-              type: "geojson",
-              data: {
-                type: "Feature",
-                properties: {
-                  vessel_name: vesselName,
-                  vessel_uuid: vesselUuid,
-                },
-                geometry: {
-                  type: "LineString",
-                  coordinates: coordinates,
-                },
-              },
-            });
-
-            // Add track line
-            mapRef.current.addLayer({
-              id: "vessel-track-line",
-              type: "line",
-              source: "vessel-track",
-              layout: {
-                "line-join": "round",
-                "line-cap": "round",
-              },
-              paint: {
-                "line-color": "#3b82f6",
-                "line-width": 3,
-                "line-opacity": 0.8,
-              },
-            });
-
-            // Add track points
-            mapRef.current.addSource("vessel-track-points", {
+            // Add previous positions source (markers only, no line connections)
+            mapRef.current.addSource("previous-positions", {
               type: "geojson",
               data: {
                 type: "FeatureCollection",
-                features: historyData.history.map((entry, index) => ({
+                features: positionData.previous_positions.map((entry: any, index: number) => ({
                   type: "Feature",
                   properties: {
                     timestamp: entry.timestamp,
                     speed: entry.speed,
-                    is_start: index === historyData.history.length - 1,
+                    is_start: index === positionData.previous_positions.length - 1,
                     is_end: index === 0,
                   },
                   geometry: {
@@ -432,9 +404,9 @@ export default function Home() {
             });
 
             mapRef.current.addLayer({
-              id: "vessel-track-points",
+              id: "previous-positions-markers",
               type: "circle",
-              source: "vessel-track-points",
+              source: "previous-positions",
               paint: {
                 "circle-radius": [
                   "case",
@@ -447,10 +419,10 @@ export default function Home() {
                 "circle-color": [
                   "case",
                   ["get", "is_start"],
-                  "#10b981", // Green for start (oldest)
+                  "#10b981", // Green for oldest position
                   ["get", "is_end"],
-                  "#ef4444", // Red for end (newest)
-                  "#3b82f6", // Blue for intermediate points
+                  "#ef4444", // Red for most recent position
+                  "#3b82f6", // Blue for intermediate positions
                 ],
                 "circle-opacity": 0.8,
                 "circle-stroke-width": 2,
@@ -458,15 +430,219 @@ export default function Home() {
               },
             });
 
-            // Fit map to track bounds
+            // Fit map to show all previous positions
             const bounds = new mapboxgl.LngLatBounds();
-            coordinates.forEach((coord) =>
-              bounds.extend(coord as [number, number])
+            coordinates.forEach((coord: [number, number]) =>
+              bounds.extend(coord)
             );
             mapRef.current.fitBounds(bounds, { padding: 50 });
 
-            // Add popup for track points
-            mapRef.current.on("click", "vessel-track-points", (e) => {
+            // Add popup for previous position markers
+            mapRef.current.on("click", "previous-positions-markers", (e) => {
+              const features = e.features;
+              if (features && features.length > 0) {
+                const feature = features[0];
+                const props = feature.properties;
+
+                const popup = new mapboxgl.Popup({
+                  closeButton: true,
+                  closeOnClick: false,
+                  className: 'vessel-popup'
+                })
+                  .setLngLat(e.lngLat)
+                  .setHTML(
+                    `
+                  <div class="bg-white/95 backdrop-blur-lg rounded-xl p-4 shadow-2xl border border-white/20 min-w-[250px]">
+                    <div class="flex items-center gap-3 mb-3">
+                      <div class="w-3 h-3 rounded-full ${
+                        props?.is_start
+                          ? "bg-green-500"
+                          : props?.is_end
+                          ? "bg-red-500"
+                          : "bg-blue-500"
+                      }"></div>
+                      <h3 class="font-semibold text-gray-900">${vesselName}</h3>
+                    </div>
+
+                    <div class="space-y-2 text-sm">
+                      <div class="flex justify-between">
+                        <span class="text-gray-600">Time:</span>
+                        <span class="font-medium text-gray-900">${new Date(
+                          props?.timestamp
+                        ).toLocaleString()}</span>
+                      </div>
+
+                      ${props?.speed ? `
+                      <div class="flex justify-between">
+                        <span class="text-gray-600">Speed:</span>
+                        <span class="font-medium text-gray-900">${props.speed} kts</span>
+                      </div>
+                      ` : ''}
+
+                      <div class="pt-2 border-t border-gray-200">
+                        <span class="text-xs font-medium ${
+                          props?.is_start
+                            ? "text-green-700"
+                            : props?.is_end
+                            ? "text-red-700"
+                            : "text-blue-700"
+                        }">
+                          ${
+                            props?.is_start
+                              ? "🟢 Oldest Position"
+                              : props?.is_end
+                              ? "🔴 Latest Position"
+                              : "🔵 Previous Position"
+                          }
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                `
+                  )
+                  .addTo(mapRef.current!);
+
+                // Auto-close after 10 seconds
+                setTimeout(() => {
+                  if (popup.isOpen()) {
+                    popup.remove();
+                  }
+                }, 10000);
+              }
+            });
+
+            // Keep the tracking vessel state for the header
+            // Don't clear it here since we want to show the clear button
+            addNotification({
+              type: "success",
+              title: "Previous Positions Loaded",
+              message: `${vesselName} - ${positionData.count} positions displayed`,
+              duration: 4000,
+            });
+          } else {
+            addNotification({
+              type: "info",
+              title: "No Previous Positions",
+              message: `No previous positions found for ${vesselName}`,
+              duration: 3000,
+            });
+            setTrackingVessel(null);
+          }
+        } else {
+          addNotification({
+            type: "error",
+            title: "Failed to Load Previous Positions",
+            message: `Could not fetch previous positions for ${vesselName}`,
+            duration: 4000,
+          });
+          setTrackingVessel(null);
+        }
+      } catch (error) {
+        console.error("Error fetching previous positions:", error);
+        addNotification({
+          type: "error",
+          title: "Error Loading Previous Positions",
+          message: `Error loading tracking history for ${vesselName}`,
+          duration: 4000,
+        });
+        setTrackingVessel(null);
+      }
+    },
+    [API_BASE_URL, addNotification]
+  );
+
+  const handleTrackVessel = useCallback(
+    async (vesselUuid: string, vesselName: string) => {
+      try {
+        setTrackingVessel({ uuid: vesselUuid, name: vesselName });
+        // Close violations panel when tracking vessel
+        setViolationsPanelOpen(false);
+
+        // Fetch historical data from Datalastic API (last 7 days by default)
+        const response = await fetch(
+          `${API_BASE_URL}/api/vessels/historical-data?uuid=${vesselUuid}&days=7&limit=100`
+        );
+
+        if (response.ok) {
+          const historyData: VesselHistoryResponse = await response.json();
+
+          if (
+            historyData.positions &&
+            historyData.positions.length > 0 &&
+            mapRef.current
+          ) {
+            // Create coordinates from Datalastic historical data
+            const coordinates = historyData.positions.map((position) => [
+              position.longitude,
+              position.latitude,
+            ]);
+
+            // Remove existing track if any
+            if (mapRef.current.getSource("vessel-track")) {
+              mapRef.current.removeLayer("vessel-track-markers");
+              mapRef.current.removeSource("vessel-track");
+            }
+
+            // Add vessel track source (markers only, no line connections)
+            mapRef.current.addSource("vessel-track", {
+              type: "geojson",
+              data: {
+                type: "FeatureCollection",
+                features: historyData.positions.map((position, index) => ({
+                  type: "Feature",
+                  properties: {
+                    timestamp: position.timestamp,
+                    speed: position.speed,
+                    course: position.course,
+                    heading: position.heading,
+                    destination: position.destination,
+                    is_start: index === historyData.positions.length - 1,
+                    is_end: index === 0,
+                  },
+                  geometry: {
+                    type: "Point",
+                    coordinates: [position.longitude, position.latitude],
+                  },
+                })),
+              },
+            });
+
+            mapRef.current.addLayer({
+              id: "vessel-track-markers",
+              type: "circle",
+              source: "vessel-track",
+              paint: {
+                "circle-radius": [
+                  "case",
+                  ["get", "is_start"],
+                  9,
+                  ["get", "is_end"],
+                  7,
+                  5,
+                ],
+                "circle-color": [
+                  "case",
+                  ["get", "is_start"],
+                  "#8b5cf6", // Purple for oldest position
+                  ["get", "is_end"],
+                  "#f59e0b", // Orange for most recent position
+                  "#06b6d4", // Cyan for intermediate positions
+                ],
+                "circle-opacity": 0.9,
+                "circle-stroke-width": 2,
+                "circle-stroke-color": "#ffffff",
+              },
+            });
+
+            // Fit map to show all track positions
+            const bounds = new mapboxgl.LngLatBounds();
+            coordinates.forEach((coord: [number, number]) =>
+              bounds.extend(coord)
+            );
+            mapRef.current.fitBounds(bounds, { padding: 50 });
+
+            // Add popup for track markers
+            mapRef.current.on("click", "vessel-track-markers", (e) => {
               const features = e.features;
               if (features && features.length > 0) {
                 const feature = features[0];
@@ -476,17 +652,25 @@ export default function Home() {
                   .setLngLat(e.lngLat)
                   .setHTML(
                     `
-                  <div style="padding: 10px; background: rgba(0, 0, 0, 0.8); border-radius: 8px; color: white;">
-                    <strong>${vesselName}</strong><br/>
-                    <small>Time: ${new Date(
+                  <div style="padding: 12px; background: rgba(0, 0, 0, 0.85); border-radius: 8px; color: white; font-family: system-ui;">
+                    <strong style="color: #f59e0b;">${vesselName}</strong><br/>
+                    <small><strong>Time:</strong> ${new Date(
                       props?.timestamp
                     ).toLocaleString()}</small><br/>
-                    <small>Speed: ${props?.speed} kts</small><br/>
-                    <small>${
+                    <small><strong>Speed:</strong> ${props?.speed || 'N/A'} kts</small><br/>
+                    <small><strong>Course:</strong> ${props?.course || 'N/A'}°</small><br/>
+                    <small><strong>Destination:</strong> ${props?.destination || 'N/A'}</small><br/>
+                    <small style="color: ${
                       props?.is_start
-                        ? "🟢 Track Start"
+                        ? "#8b5cf6"
                         : props?.is_end
-                        ? "🔴 Latest Position"
+                        ? "#f59e0b"
+                        : "#06b6d4"
+                    };">${
+                      props?.is_start
+                        ? "🟣 Historical Start"
+                        : props?.is_end
+                        ? "🟠 Latest Tracked"
                         : "🔵 Track Point"
                     }</small>
                   </div>
@@ -496,34 +680,56 @@ export default function Home() {
               }
             });
 
-            // Keep the tracking vessel state for the header
-            // Don't clear it here since we want to show the clear button
-            alert(
-              `Tracking history loaded for ${vesselName} (${historyData.count} positions)`
-            );
+            addNotification({
+              type: "success",
+              title: "Vessel Track Loaded",
+              message: `${vesselName} - ${historyData.positions.length} positions from Datalastic API`,
+              duration: 4000,
+            });
           } else {
-            alert(`No tracking history found for ${vesselName}`);
+            addNotification({
+              type: "info",
+              title: "No Tracking History",
+              message: `No tracking history found for ${vesselName}`,
+              duration: 3000,
+            });
             setTrackingVessel(null);
           }
         } else {
-          alert(`Failed to fetch tracking history for ${vesselName}`);
+          addNotification({
+            type: "error",
+            title: "Failed to Load Vessel Track",
+            message: `Could not fetch tracking history for ${vesselName}`,
+            duration: 4000,
+          });
           setTrackingVessel(null);
         }
       } catch (error) {
-        console.error("Error fetching vessel history:", error);
-        alert(`Error loading tracking history for ${vesselName}`);
+        console.error("Error fetching vessel track:", error);
+        addNotification({
+          type: "error",
+          title: "Error Loading Vessel Track",
+          message: `Error loading vessel track for ${vesselName}`,
+          duration: 4000,
+        });
         setTrackingVessel(null);
       }
     },
-    [API_BASE_URL]
+    [API_BASE_URL, addNotification]
   );
 
   const clearVesselTrack = useCallback(() => {
-    if (mapRef.current && mapRef.current.getSource("vessel-track")) {
-      mapRef.current.removeLayer("vessel-track-line");
-      mapRef.current.removeLayer("vessel-track-points");
-      mapRef.current.removeSource("vessel-track");
-      mapRef.current.removeSource("vessel-track-points");
+    if (mapRef.current) {
+      // Clear previous positions
+      if (mapRef.current.getSource("previous-positions")) {
+        mapRef.current.removeLayer("previous-positions-markers");
+        mapRef.current.removeSource("previous-positions");
+      }
+      // Clear vessel track
+      if (mapRef.current.getSource("vessel-track")) {
+        mapRef.current.removeLayer("vessel-track-markers");
+        mapRef.current.removeSource("vessel-track");
+      }
     }
     setTrackingVessel(null);
   }, []);
@@ -664,6 +870,8 @@ export default function Home() {
         onMapReady={handleMapReady}
         layerVisibility={layerVisibility}
         onLayerToggle={handleLayerToggle}
+        onShowPreviousPositions={handleShowPreviousPositions}
+        onTrackVessel={handleTrackVessel}
       />
 
       <Legend
@@ -677,7 +885,14 @@ export default function Home() {
         isOpen={violationsPanelOpen}
         onClose={closeViolationsPanel}
         onVesselClick={handleVesselClick}
-        onTrackHistory={handleTrackHistory}
+        onShowPreviousPositions={handleShowPreviousPositions}
+        onTrackVessel={handleTrackVessel}
+      />
+
+      {/* Notification System */}
+      <NotificationContainer
+        notifications={notifications}
+        onRemoveNotification={removeNotification}
       />
     </div>
   );

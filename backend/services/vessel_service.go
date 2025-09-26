@@ -93,6 +93,44 @@ func (s *VesselService) GetAllVessels(params map[string]string, maxResults int) 
 	return allVessels, nil
 }
 
+// GetVesselHistory fetches historical vessel data from Datalastic API
+func (s *VesselService) GetVesselHistoryFromAPI(params map[string]string) (*models.VesselHistoryResponse, error) {
+	endpoint := fmt.Sprintf("%s/vessel_history", BaseURL)
+
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse URL: %w", err)
+	}
+
+	q := u.Query()
+	q.Set("api-key", s.apiKey)
+
+	// Add all parameters (uuid, mmsi, imo, days, from, to)
+	for key, value := range params {
+		q.Set(key, value)
+	}
+
+	u.RawQuery = q.Encode()
+
+	resp, err := s.client.Get(u.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var historyResp models.VesselHistoryResponse
+	if err := json.NewDecoder(resp.Body).Decode(&historyResp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &historyResp, nil
+}
+
 func (s *VesselService) GetVesselsByArea(minLat, maxLat, minLon, maxLon float64) ([]models.Vessel, error) {
 	// Note: The Datalastic API doesn't directly support area filtering
 	// You would need to use their vessel position endpoint or filter after fetching
