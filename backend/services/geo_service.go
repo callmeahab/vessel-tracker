@@ -12,6 +12,7 @@ import (
 type GeoService struct {
 	parkBoundaries     *geojson.FeatureCollection
 	bufferedBoundaries *geojson.FeatureCollection
+	landuse            map[string]interface{} // Raw landuse GeoJSON data
 }
 
 func NewGeoService(geojsonPath string, bufferedPath string) (*GeoService, error) {
@@ -54,9 +55,28 @@ func NewGeoService(geojsonPath string, bufferedPath string) (*GeoService, error)
 		}
 	}
 
+	// Load landuse data
+	var landuseData map[string]interface{}
+	landuseFile, err := os.Open("./data/landuse.geojson")
+	if err != nil {
+		fmt.Printf("Warning: Failed to open landuse.geojson: %v\n", err)
+	} else {
+		defer landuseFile.Close()
+		landuseBytes, err := io.ReadAll(landuseFile)
+		if err != nil {
+			fmt.Printf("Warning: Failed to read landuse.geojson: %v\n", err)
+		} else {
+			err = json.Unmarshal(landuseBytes, &landuseData)
+			if err != nil {
+				fmt.Printf("Warning: Failed to parse landuse.geojson: %v\n", err)
+			}
+		}
+	}
+
 	return &GeoService{
 		parkBoundaries:     fc,
 		bufferedBoundaries: bufferedFC,
+		landuse:            landuseData,
 	}, nil
 }
 
@@ -141,6 +161,74 @@ func (s *GeoService) IsPointInBufferZone(lat, lon float64) bool {
 	}
 
 	return false
+}
+
+// GetParkBoundingBox returns the bounding box (minLat, maxLat, minLon, maxLon) of the park
+func (s *GeoService) GetParkBoundingBox() (float64, float64, float64, float64) {
+	var minLat, maxLat, minLon, maxLon float64
+	first := true
+
+	for _, feature := range s.parkBoundaries.Features {
+		g := feature.Geometry
+		switch g.Type {
+		case geojson.GeometryPolygon:
+			if g.Polygon != nil && len(g.Polygon) > 0 {
+				for _, coord := range g.Polygon[0] {
+					lon, lat := coord[0], coord[1]
+					if first {
+						minLat, maxLat = lat, lat
+						minLon, maxLon = lon, lon
+						first = false
+					} else {
+						if lat < minLat {
+							minLat = lat
+						}
+						if lat > maxLat {
+							maxLat = lat
+						}
+						if lon < minLon {
+							minLon = lon
+						}
+						if lon > maxLon {
+							maxLon = lon
+						}
+					}
+				}
+			}
+		case geojson.GeometryMultiPolygon:
+			if g.MultiPolygon != nil {
+				for _, polygon := range g.MultiPolygon {
+					if len(polygon) > 0 {
+						for _, coord := range polygon[0] {
+							lon, lat := coord[0], coord[1]
+							if first {
+								minLat, maxLat = lat, lat
+								minLon, maxLon = lon, lon
+								first = false
+							} else {
+								if lat < minLat {
+									minLat = lat
+								}
+								if lat > maxLat {
+									maxLat = lat
+								}
+								if lon < minLon {
+									minLon = lon
+								}
+								if lon > maxLon {
+									maxLon = lon
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Add small buffer (0.1 degrees) to ensure we capture vessels near boundaries
+	buffer := 0.1
+	return minLat - buffer, maxLat + buffer, minLon - buffer, maxLon + buffer
 }
 
 func (s *GeoService) GetParkCenter() (float64, float64) {
@@ -267,4 +355,112 @@ func (s *GeoService) pointToLineDistance(px, py, x1, y1, x2, y2 float64) float64
 	dx := px - closestX
 	dy := py - closestY
 	return dx*dx + dy*dy // Return squared distance for performance (we'll compare with squared buffer)
+}
+
+// LineIntersectsLand checks if a line between two points crosses over land
+func (s *GeoService) LineIntersectsLand(lat1, lon1, lat2, lon2 float64) bool {
+	if s.landuse == nil {
+		return false // If no landuse data, assume no intersection
+	}
+
+	// Get elements from landuse data
+	elements, ok := s.landuse["elements"].([]interface{})
+	if !ok {
+		return false
+	}
+
+	line := [][]float64{{lon1, lat1}, {lon2, lat2}}
+
+	// Check each landuse element
+	for _, element := range elements {
+		elem, ok := element.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		geometry, ok := elem["geometry"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		geometries, ok := geometry["geometries"].([]interface{})
+		if !ok {
+			continue
+		}
+
+		// Check each geometry in the collection
+		for _, geom := range geometries {
+			geomMap, ok := geom.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			geomType, ok := geomMap["type"].(string)
+			if !ok {
+				continue
+			}
+
+			// Check different geometry types
+			switch geomType {
+			case "Polygon", "LineString":
+				coords, ok := geomMap["coordinates"].([]interface{})
+				if ok && s.lineIntersectsPolygon(line, coords) {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+// lineIntersectsPolygon checks if a line intersects with a polygon
+func (s *GeoService) lineIntersectsPolygon(line [][]float64, polygonCoords []interface{}) bool {
+	// Convert polygon coordinates
+	var polygon [][]float64
+	for _, coord := range polygonCoords {
+		coordSlice, ok := coord.([]interface{})
+		if !ok || len(coordSlice) < 2 {
+			continue
+		}
+		lon, ok1 := coordSlice[0].(float64)
+		lat, ok2 := coordSlice[1].(float64)
+		if ok1 && ok2 {
+			polygon = append(polygon, []float64{lon, lat})
+		}
+	}
+
+	if len(polygon) < 2 {
+		return false
+	}
+
+	// Check if line intersects any edge of the polygon
+	for i := 0; i < len(polygon)-1; i++ {
+		if s.linesIntersect(line[0], line[1], polygon[i], polygon[i+1]) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// linesIntersect checks if two line segments intersect
+func (s *GeoService) linesIntersect(p1, p2, p3, p4 []float64) bool {
+	// Using the cross product method to determine if segments intersect
+	d1 := s.direction(p3, p4, p1)
+	d2 := s.direction(p3, p4, p2)
+	d3 := s.direction(p1, p2, p3)
+	d4 := s.direction(p1, p2, p4)
+
+	if ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+		((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0)) {
+		return true
+	}
+
+	return false
+}
+
+// direction calculates the direction of point p3 relative to line p1-p2
+func (s *GeoService) direction(p1, p2, p3 []float64) float64 {
+	return (p3[0]-p1[0])*(p2[1]-p1[1]) - (p3[1]-p1[1])*(p2[0]-p1[0])
 }

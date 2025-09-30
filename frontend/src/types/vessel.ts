@@ -55,11 +55,24 @@ export interface VesselHistoryEntry {
   recorded_at: string;
 }
 
+export interface TrackSegment {
+  from: {
+    latitude: number;
+    longitude: number;
+  };
+  to: {
+    latitude: number;
+    longitude: number;
+  };
+}
+
 export interface VesselHistoryResponse {
   vessel_uuid: string;
-  history: VesselHistoryEntry[];
+  previous_positions: VesselHistoryEntry[];
+  track_segments: TrackSegment[];
   count: number;
-  start_time: string;
-  end_time: string;
+  segments_count: number;
+  start_time?: string;
+  end_time?: string;
   limit: number;
 }

@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	BaseURL = "https://api.datalastic.com/api/v0"
+	BaseURL = "https://services.marinetraffic.com/api"
 )
 
 type VesselService struct {
@@ -28,39 +28,9 @@ func NewVesselService(apiKey string) *VesselService {
 }
 
 func (s *VesselService) SearchVessels(params map[string]string) (*models.VesselResponse, error) {
-	endpoint := fmt.Sprintf("%s/vessel_find", BaseURL)
-
-	u, err := url.Parse(endpoint)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse URL: %w", err)
-	}
-
-	q := u.Query()
-	q.Set("api-key", s.apiKey)
-
-	for key, value := range params {
-		q.Set(key, value)
-	}
-
-	u.RawQuery = q.Encode()
-
-	resp, err := s.client.Get(u.String())
-	if err != nil {
-		return nil, fmt.Errorf("failed to make request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var vesselResp models.VesselResponse
-	if err := json.NewDecoder(resp.Body).Decode(&vesselResp); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	return &vesselResp, nil
+	// MarineTraffic doesn't have a direct vessel search API like Datalastic
+	// This would need to be implemented using exportvessels or other endpoints
+	return nil, fmt.Errorf("vessel search not supported in MarineTraffic API, use GetVesselsInRadius instead")
 }
 
 func (s *VesselService) GetAllVessels(params map[string]string, maxResults int) ([]models.Vessel, error) {
@@ -93,43 +63,6 @@ func (s *VesselService) GetAllVessels(params map[string]string, maxResults int) 
 	return allVessels, nil
 }
 
-// GetVesselHistory fetches historical vessel data from Datalastic API
-func (s *VesselService) GetVesselHistoryFromAPI(params map[string]string) (*models.VesselHistoryResponse, error) {
-	endpoint := fmt.Sprintf("%s/vessel_history", BaseURL)
-
-	u, err := url.Parse(endpoint)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse URL: %w", err)
-	}
-
-	q := u.Query()
-	q.Set("api-key", s.apiKey)
-
-	// Add all parameters (uuid, mmsi, imo, days, from, to)
-	for key, value := range params {
-		q.Set(key, value)
-	}
-
-	u.RawQuery = q.Encode()
-
-	resp, err := s.client.Get(u.String())
-	if err != nil {
-		return nil, fmt.Errorf("failed to make request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var historyResp models.VesselHistoryResponse
-	if err := json.NewDecoder(resp.Body).Decode(&historyResp); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	return &historyResp, nil
-}
 
 func (s *VesselService) GetVesselsByArea(minLat, maxLat, minLon, maxLon float64) ([]models.Vessel, error) {
 	// Note: The Datalastic API doesn't directly support area filtering
@@ -137,7 +70,7 @@ func (s *VesselService) GetVesselsByArea(minLat, maxLat, minLon, maxLon float64)
 	// For now, we'll fetch vessels and you'll need to filter by position separately
 
 	params := map[string]string{
-		"type": "Cargo,Tanker,Passenger,Fishing",
+		// "type": "Cargo,Tanker,Passenger,Fishing",
 	}
 
 	return s.GetAllVessels(params, 0) // No limit - return all vessels in area
@@ -148,7 +81,10 @@ func (s *VesselService) GetVesselsInRadius(lat, lon float64, radius int) (*model
 }
 
 func (s *VesselService) getVesselsInRadiusWithRetry(lat, lon float64, radius int, maxRetries int) (*models.VesselPositionResponse, error) {
-	endpoint := fmt.Sprintf("%s/vessel_inradius", BaseURL)
+	// MarineTraffic uses exportvessels-custom-area endpoint
+	// The area is defined by your MarineTraffic subscription
+
+	endpoint := fmt.Sprintf("%s/exportvessels-custom-area/%s", BaseURL, s.apiKey)
 
 	u, err := url.Parse(endpoint)
 	if err != nil {
@@ -156,10 +92,9 @@ func (s *VesselService) getVesselsInRadiusWithRetry(lat, lon float64, radius int
 	}
 
 	q := u.Query()
-	q.Set("api-key", s.apiKey)
-	q.Set("lat", fmt.Sprintf("%.6f", lat))
-	q.Set("lon", fmt.Sprintf("%.6f", lon))
-	q.Set("radius", fmt.Sprintf("%d", radius))
+	q.Set("v", "2")
+	q.Set("protocol", "jsono")
+	q.Set("timespan", "5") // Last 5 minutes
 
 	u.RawQuery = q.Encode()
 
@@ -167,7 +102,7 @@ func (s *VesselService) getVesselsInRadiusWithRetry(lat, lon float64, radius int
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		if attempt > 0 {
-			// Exponential backoff: 2^attempt seconds with jitter
+			// Exponential backoff: 2^attempt seconds
 			backoffSeconds := math.Pow(2, float64(attempt))
 			backoffDuration := time.Duration(backoffSeconds) * time.Second
 			fmt.Printf("Rate limit encountered, retrying in %.0f seconds (attempt %d/%d)...\n",
@@ -182,14 +117,17 @@ func (s *VesselService) getVesselsInRadiusWithRetry(lat, lon float64, radius int
 		}
 
 		if resp.StatusCode == http.StatusOK {
-			// Success - decode and return
-			var vesselResp models.VesselPositionResponse
-			if err := json.NewDecoder(resp.Body).Decode(&vesselResp); err != nil {
+			// Success - decode MarineTraffic response and convert to our format
+			var mtResp models.MarineTrafficResponse
+			if err := json.NewDecoder(resp.Body).Decode(&mtResp); err != nil {
 				resp.Body.Close()
 				return nil, fmt.Errorf("failed to decode response: %w", err)
 			}
 			resp.Body.Close()
-			return &vesselResp, nil
+
+			// Convert to our VesselPositionResponse format
+			vesselResp := models.ConvertMarineTrafficToVesselPosition(&mtResp, lat, lon)
+			return vesselResp, nil
 		}
 
 		// Read error response

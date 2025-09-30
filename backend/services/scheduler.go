@@ -24,8 +24,8 @@ func NewSchedulerService(vesselService *VesselService, geoService *GeoService, v
 }
 
 func (s *SchedulerService) Start() error {
-	// Fetch vessel data every 30 minutes
-	_, err := s.cron.AddFunc("0 */30 * * * *", s.fetchVesselData)
+	// Fetch vessel data every 5 minutes
+	_, err := s.cron.AddFunc("0 */5 * * * *", s.fetchVesselData)
 	if err != nil {
 		return err
 	}
@@ -37,7 +37,7 @@ func (s *SchedulerService) Start() error {
 	}
 
 	s.cron.Start()
-	log.Println("Scheduler started - will fetch vessel data every 30 minutes")
+	log.Println("Scheduler started - will fetch vessel data every 5 minutes")
 
 	// Run initial fetch
 	go s.fetchVesselData()
@@ -66,6 +66,7 @@ func (s *SchedulerService) fetchVesselData() {
 		return
 	}
 
+	// Store current vessel positions
 	err = s.vesselRepo.StoreVesselData(vesselPositions.Data.Vessels, s.geoService)
 	if err != nil {
 		log.Printf("Failed to store vessel data: %v", err)

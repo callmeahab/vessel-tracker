@@ -479,37 +479,72 @@ export default function Home() {
         // Close violations panel when tracking vessel
         setViolationsPanelOpen(false);
 
-        // Fetch historical data from Datalastic API (last 7 days by default)
+        // Fetch previous positions from local database
         const response = await fetch(
-          getApiUrl(API_ENDPOINTS.vesselHistoricalData(vesselUuid, 7, 100))
+          getApiUrl(API_ENDPOINTS.vesselPreviousPositions(vesselUuid, 100))
         );
 
         if (response.ok) {
           const historyData: VesselHistoryResponse = await response.json();
 
           if (
-            historyData.history &&
-            historyData.history.length > 0 &&
+            historyData.previous_positions &&
+            historyData.previous_positions.length > 0 &&
             mapRef.current
           ) {
-            // Create coordinates from Datalastic historical data
-            const coordinates = historyData.history.map((position) => [
+            // Create coordinates from previous positions
+            const coordinates = historyData.previous_positions.map((position) => [
               position.longitude,
               position.latitude,
             ]);
 
-            // Remove existing track if any
+            // Remove existing track layers if any
             if (mapRef.current.getSource("vessel-track")) {
               mapRef.current.removeLayer("vessel-track-markers");
               mapRef.current.removeSource("vessel-track");
             }
+            if (mapRef.current.getSource("vessel-track-lines")) {
+              mapRef.current.removeLayer("vessel-track-lines");
+              mapRef.current.removeSource("vessel-track-lines");
+            }
 
-            // Add vessel track source (markers only, no line connections)
+            // Add vessel track lines source (avoiding land)
+            mapRef.current.addSource("vessel-track-lines", {
+              type: "geojson",
+              data: {
+                type: "FeatureCollection",
+                features: historyData.track_segments.map((segment) => ({
+                  type: "Feature",
+                  properties: {},
+                  geometry: {
+                    type: "LineString",
+                    coordinates: [
+                      [segment.from.longitude, segment.from.latitude],
+                      [segment.to.longitude, segment.to.latitude],
+                    ],
+                  },
+                })),
+              },
+            });
+
+            // Add line layer
+            mapRef.current.addLayer({
+              id: "vessel-track-lines",
+              type: "line",
+              source: "vessel-track-lines",
+              paint: {
+                "line-color": "#06b6d4",
+                "line-width": 2,
+                "line-opacity": 0.7,
+              },
+            });
+
+            // Add vessel track markers source
             mapRef.current.addSource("vessel-track", {
               type: "geojson",
               data: {
                 type: "FeatureCollection",
-                features: historyData.history.map((position, index) => ({
+                features: historyData.previous_positions.map((position, index) => ({
                   type: "Feature",
                   properties: {
                     timestamp: position.timestamp,
@@ -517,7 +552,7 @@ export default function Home() {
                     course: position.course,
                     heading: position.heading,
                     destination: position.destination,
-                    is_start: index === historyData.history.length - 1,
+                    is_start: index === historyData.previous_positions.length - 1,
                     is_end: index === 0,
                   },
                   geometry: {
@@ -569,42 +604,24 @@ export default function Home() {
                 const feature = features[0];
                 const props = feature.properties;
 
-                new mapboxgl.Popup()
-                  .setLngLat(e.lngLat)
-                  .setHTML(
-                    `
-                  <div style="padding: 12px; background: rgba(0, 0, 0, 0.85); border-radius: 8px; color: white; font-family: system-ui;">
-                    <strong style="color: #f59e0b;">${vesselName}</strong><br/>
-                    <small><strong>Time:</strong> ${new Date(
-                      props?.timestamp
-                    ).toLocaleString()}</small><br/>
-                    <small><strong>Speed:</strong> ${props?.speed || 'N/A'} kts</small><br/>
-                    <small><strong>Course:</strong> ${props?.course || 'N/A'}°</small><br/>
-                    <small><strong>Destination:</strong> ${props?.destination || 'N/A'}</small><br/>
-                    <small style="color: ${
-                      props?.is_start
-                        ? "#8b5cf6"
-                        : props?.is_end
-                        ? "#f59e0b"
-                        : "#06b6d4"
-                    };">${
-                      props?.is_start
-                        ? "🟣 Historical Start"
-                        : props?.is_end
-                        ? "🟠 Latest Tracked"
-                        : "🔵 Track Point"
-                    }</small>
-                  </div>
-                `
-                  )
-                  .addTo(mapRef.current!);
+                MapPopupControl.createVesselPositionPopup(
+                  mapRef.current!,
+                  e.lngLat.toArray() as [number, number],
+                  {
+                    timestamp: props?.timestamp,
+                    speed: props?.speed,
+                    is_start: props?.is_start,
+                    is_end: props?.is_end,
+                    vesselName: vesselName,
+                  }
+                );
               }
             });
 
             addNotification({
               type: "success",
               title: "Vessel Track Loaded",
-              message: `${vesselName} - ${historyData.history.length} positions from Datalastic API`,
+              message: `${vesselName} - ${historyData.previous_positions.length} positions (${historyData.segments_count} track segments)`,
               duration: 4000,
             });
           } else {
@@ -650,6 +667,10 @@ export default function Home() {
       if (mapRef.current.getSource("vessel-track")) {
         mapRef.current.removeLayer("vessel-track-markers");
         mapRef.current.removeSource("vessel-track");
+      }
+      if (mapRef.current.getSource("vessel-track-lines")) {
+        mapRef.current.removeLayer("vessel-track-lines");
+        mapRef.current.removeSource("vessel-track-lines");
       }
     }
     setTrackingVessel(null);

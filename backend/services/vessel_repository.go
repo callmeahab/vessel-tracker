@@ -85,14 +85,12 @@ func (r *VesselRepository) StoreVesselData(vesselPositions []models.VesselPositi
 func (r *VesselRepository) GetLatestVesselPositions() ([]models.VesselPositionRecord, error) {
 	var positions []models.VesselPositionRecord
 
-	// Get the latest position for each vessel that is within the park
+	// Get the latest position for each vessel (all vessels, not just in park)
 	subQuery := r.db.Model(&models.VesselPositionRecord{}).
 		Select("vessel_uuid, MAX(recorded_at) as max_recorded_at").
-		Where("is_in_park = ?", true).
 		Group("vessel_uuid")
 
 	err := r.db.Joins("JOIN (?) as latest ON vessel_position_records.vessel_uuid = latest.vessel_uuid AND vessel_position_records.recorded_at = latest.max_recorded_at", subQuery).
-		Where("vessel_position_records.is_in_park = ?", true).
 		Preload("Vessel").
 		Find(&positions).Error
 

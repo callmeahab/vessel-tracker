@@ -26,9 +26,9 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
-	apiKey := os.Getenv("DATALASTIC_API_KEY")
+	apiKey := os.Getenv("MARINETRAFFIC_API_KEY")
 	if apiKey == "" {
-		log.Fatal("DATALASTIC_API_KEY environment variable is required")
+		log.Fatal("MARINETRAFFIC_API_KEY environment variable is required")
 	}
 
 	// Initialize services
@@ -89,7 +89,6 @@ func main() {
 		api.GET("/vessels/at-time", vesselHandler.GetVesselsAtTime)
 		api.GET("/vessels/in-park/at-time", vesselHandler.GetVesselsInParkAtTime)
 		api.GET("/vessels/:uuid/previous-positions", vesselHandler.GetPreviousPositions)
-		api.GET("/vessels/historical-data", vesselHandler.GetVesselHistoricalData)
 		api.GET("/park-boundaries", vesselHandler.GetParkBoundaries)
 		api.GET("/buffered-boundaries", vesselHandler.GetBufferedBoundaries)
 		api.GET("/posidonia", handlers.GetPosidoniaData)
