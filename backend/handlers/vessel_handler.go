@@ -470,14 +470,14 @@ func (h *VesselHandler) GetPreviousPositions(c *gin.Context) {
 		if i < len(positions)-1 {
 			nextPos := positions[i+1]
 
-			// Check if line crosses land
-			crossesLand := h.geoService.LineIntersectsLand(
+			// Try to find path around land if direct path crosses it
+			waypoints := h.geoService.FindPathAroundLand(
 				pos.Latitude, pos.Longitude,
 				nextPos.Latitude, nextPos.Longitude,
 			)
 
-			// Only include segment if it doesn't cross land
-			if !crossesLand {
+			if waypoints == nil {
+				// Direct path is clear
 				segment := gin.H{
 					"from": gin.H{
 						"latitude":  pos.Latitude,
@@ -489,7 +489,42 @@ func (h *VesselHandler) GetPreviousPositions(c *gin.Context) {
 					},
 				}
 				trackSegments = append(trackSegments, segment)
+			} else if len(waypoints) > 0 {
+				// Path around land found - create multiple segments
+				// First segment: from current position to first waypoint
+				currentLat := pos.Latitude
+				currentLon := pos.Longitude
+
+				for _, waypoint := range waypoints {
+					segment := gin.H{
+						"from": gin.H{
+							"latitude":  currentLat,
+							"longitude": currentLon,
+						},
+						"to": gin.H{
+							"latitude":  waypoint[0],
+							"longitude": waypoint[1],
+						},
+					}
+					trackSegments = append(trackSegments, segment)
+					currentLat = waypoint[0]
+					currentLon = waypoint[1]
+				}
+
+				// Final segment: from last waypoint to next position
+				segment := gin.H{
+					"from": gin.H{
+						"latitude":  currentLat,
+						"longitude": currentLon,
+					},
+					"to": gin.H{
+						"latitude":  nextPos.Latitude,
+						"longitude": nextPos.Longitude,
+					},
+				}
+				trackSegments = append(trackSegments, segment)
 			}
+			// If waypoints is empty slice (no path found), skip this connection
 		}
 	}
 

@@ -88,7 +88,7 @@ func main() {
 		api.GET("/vessels/in-park", vesselHandler.GetVesselsInPark)
 		api.GET("/vessels/at-time", vesselHandler.GetVesselsAtTime)
 		api.GET("/vessels/in-park/at-time", vesselHandler.GetVesselsInParkAtTime)
-		api.GET("/vessels/:uuid/previous-positions", vesselHandler.GetPreviousPositions)
+		api.GET("/vessels/:uuid/track", vesselHandler.GetPreviousPositions)
 		api.GET("/park-boundaries", vesselHandler.GetParkBoundaries)
 		api.GET("/buffered-boundaries", vesselHandler.GetBufferedBoundaries)
 		api.GET("/posidonia", handlers.GetPosidoniaData)

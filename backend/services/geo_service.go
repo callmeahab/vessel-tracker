@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"os"
 
 	geojson "github.com/paulmach/go.geojson"
@@ -463,4 +464,78 @@ func (s *GeoService) linesIntersect(p1, p2, p3, p4 []float64) bool {
 // direction calculates the direction of point p3 relative to line p1-p2
 func (s *GeoService) direction(p1, p2, p3 []float64) float64 {
 	return (p3[0]-p1[0])*(p2[1]-p1[1]) - (p3[1]-p1[1])*(p2[0]-p1[0])
+}
+
+// FindPathAroundLand attempts to find a path around land between two points
+// Returns a series of waypoints that avoid land, or empty slice if direct path is clear
+func (s *GeoService) FindPathAroundLand(lat1, lon1, lat2, lon2 float64) [][]float64 {
+	// Check if direct path is clear
+	if !s.LineIntersectsLand(lat1, lon1, lat2, lon2) {
+		return nil // Direct path is fine
+	}
+
+	// Try intermediate waypoints at different offsets
+	// We'll try points perpendicular to the direct line at various distances
+	midLat := (lat1 + lat2) / 2
+	midLon := (lon1 + lon2) / 2
+
+	// Calculate perpendicular offset direction
+	dx := lon2 - lon1
+	dy := lat2 - lat1
+	length := math.Sqrt(dx*dx + dy*dy)
+
+	if length == 0 {
+		return nil
+	}
+
+	// Perpendicular unit vector
+	perpX := -dy / length
+	perpY := dx / length
+
+	// Try offsets at 0.01, 0.02, 0.03 degrees (roughly 1-3 km)
+	offsets := []float64{0.01, 0.02, 0.03, 0.05}
+
+	for _, offset := range offsets {
+		// Try both sides of the line
+		for _, side := range []float64{1, -1} {
+			wayLat := midLat + perpY*offset*side
+			wayLon := midLon + perpX*offset*side
+
+			// Check if path through this waypoint avoids land
+			segment1Clear := !s.LineIntersectsLand(lat1, lon1, wayLat, wayLon)
+			segment2Clear := !s.LineIntersectsLand(wayLat, wayLon, lat2, lon2)
+
+			if segment1Clear && segment2Clear {
+				// Found a valid waypoint
+				return [][]float64{{wayLat, wayLon}}
+			}
+		}
+	}
+
+	// If single waypoint doesn't work, try two waypoints (more curved path)
+	quarterLat1 := lat1 + (lat2-lat1)*0.33
+	quarterLon1 := lon1 + (lon2-lon1)*0.33
+	quarterLat2 := lat1 + (lat2-lat1)*0.67
+	quarterLon2 := lon1 + (lon2-lon1)*0.67
+
+	for _, offset := range offsets {
+		for _, side := range []float64{1, -1} {
+			way1Lat := quarterLat1 + perpY*offset*side
+			way1Lon := quarterLon1 + perpX*offset*side
+			way2Lat := quarterLat2 + perpY*offset*side
+			way2Lon := quarterLon2 + perpX*offset*side
+
+			// Check if path through both waypoints avoids land
+			seg1 := !s.LineIntersectsLand(lat1, lon1, way1Lat, way1Lon)
+			seg2 := !s.LineIntersectsLand(way1Lat, way1Lon, way2Lat, way2Lon)
+			seg3 := !s.LineIntersectsLand(way2Lat, way2Lon, lat2, lon2)
+
+			if seg1 && seg2 && seg3 {
+				return [][]float64{{way1Lat, way1Lon}, {way2Lat, way2Lon}}
+			}
+		}
+	}
+
+	// No valid path found - return empty
+	return nil
 }

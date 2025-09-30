@@ -25,5 +25,5 @@ export const API_ENDPOINTS = {
   bufferedBoundaries: '/api/buffered-boundaries',
   posidonia: '/api/posidonia',
   shoreline: '/api/shoreline',
-  vesselPreviousPositions: (uuid: string, limit: number = 100) => `/api/vessels/${uuid}/previous-positions?limit=${limit}`,
+  vesselTrack: (uuid: string, limit: number = 100) => `/api/vessels/${uuid}/track?limit=${limit}`,
 } as const;

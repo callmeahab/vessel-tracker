@@ -19,7 +19,6 @@ interface MobileVesselPanelProps {
   vessel: VesselProperties | null;
   isOpen: boolean;
   onClose: () => void;
-  onShowPreviousPositions?: (vesselUuid: string, vesselName: string) => void;
   onTrackVessel?: (vesselUuid: string, vesselName: string) => void;
 }
 
@@ -27,7 +26,6 @@ export default function MobileVesselPanel({
   vessel,
   isOpen,
   onClose,
-  onShowPreviousPositions,
   onTrackVessel,
 }: MobileVesselPanelProps) {
   const [isMobile, setIsMobile] = useState(true); // Default to mobile to avoid hydration issues
@@ -287,39 +285,22 @@ export default function MobileVesselPanel({
                 )}
 
               {/* Action Buttons */}
-              {(vessel.uuid || vessel.mmsi) &&
-                (onShowPreviousPositions || onTrackVessel) && (
-                  <div className="flex gap-3 pt-4">
-                    {onShowPreviousPositions && (
-                      <button
-                        onClick={() => {
-                          const vesselId = vessel.uuid || vessel.mmsi;
-                          const vesselName = vessel.name || "Unknown Vessel";
-                          onShowPreviousPositions(vesselId, vesselName);
-                          onClose();
-                        }}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2"
-                      >
-                        <MdLocationOn className="text-base" />
-                        Previous Positions
-                      </button>
-                    )}
-                    {onTrackVessel && (
-                      <button
-                        onClick={() => {
-                          const vesselId = vessel.uuid || vessel.mmsi;
-                          const vesselName = vessel.name || "Unknown Vessel";
-                          onTrackVessel(vesselId, vesselName);
-                          onClose();
-                        }}
-                        className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2"
-                      >
-                        <MdRadar className="text-base" />
-                        Track Vessel
-                      </button>
-                    )}
-                  </div>
-                )}
+              {(vessel.uuid || vessel.mmsi) && onTrackVessel && (
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={() => {
+                      const vesselId = vessel.uuid || vessel.mmsi;
+                      const vesselName = vessel.name || "Unknown Vessel";
+                      onTrackVessel(vesselId, vesselName);
+                      onClose();
+                    }}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2"
+                  >
+                    <MdRadar className="text-base" />
+                    Track Vessel
+                  </button>
+                </div>
+              )}
 
               {vessel.timestamp && (
                 <div className="text-center pt-2 border-t border-gray-200">

@@ -21,7 +21,6 @@ interface ViolationsPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onVesselClick?: (vessel: VesselData) => void;
-  onShowPreviousPositions?: (vesselUuid: string, vesselName: string) => void;
   onTrackVessel?: (vesselUuid: string, vesselName: string) => void;
 }
 
@@ -35,7 +34,6 @@ export default function ViolationsPanel({
   isOpen,
   onClose,
   onVesselClick,
-  onShowPreviousPositions,
   onTrackVessel,
 }: ViolationsPanelProps) {
   // Group vessels by violation severity - optimized
@@ -88,12 +86,6 @@ export default function ViolationsPanel({
     return result;
   }, [vessels, isOpen]);
 
-  const handleShowPreviousPositions = useCallback(
-    (uuid: string, name: string) => {
-      onShowPreviousPositions?.(uuid, name);
-    },
-    [onShowPreviousPositions]
-  );
 
   const handleTrackVessel = useCallback(
     (uuid: string, name: string) => {
@@ -164,30 +156,17 @@ export default function ViolationsPanel({
           </div>
         )}
 
-        {vessel.vessel.uuid && (onShowPreviousPositions || onTrackVessel) && (
+        {vessel.vessel.uuid && onTrackVessel && (
           <div className="mt-3 flex gap-2">
-            {onShowPreviousPositions && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleShowPreviousPositions(vessel.vessel.uuid!, vessel.vessel.name);
-                }}
-                className="flex-1 px-3 py-2 glass-ocean rounded-md text-white text-xs font-medium hover:gradient-ocean-light transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
-              >
-                <MdLocationOn className="inline mr-1" /> Previous Positions
-              </button>
-            )}
-            {onTrackVessel && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleTrackVessel(vessel.vessel.uuid!, vessel.vessel.name);
-                }}
-                className="flex-1 px-3 py-2 glass-coral rounded-md text-white text-xs font-medium hover:gradient-coral transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
-              >
-                <MdRadar className="inline mr-1" /> Track Vessel
-              </button>
-            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleTrackVessel(vessel.vessel.uuid!, vessel.vessel.name);
+              }}
+              className="flex-1 px-3 py-2 glass-coral rounded-md text-white text-xs font-medium hover:gradient-coral transition-all duration-200 flex items-center justify-center gap-1 text-shadow-sm"
+            >
+              <MdRadar className="inline mr-1" /> Track Vessel
+            </button>
           </div>
         )}
       </div>

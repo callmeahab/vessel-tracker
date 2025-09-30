@@ -60,7 +60,6 @@ interface MapProps {
   onMapReady?: (map: mapboxgl.Map) => void;
   layerVisibility?: Record<string, boolean>;
   onLayerToggle?: (layerId: string, visible: boolean) => void;
-  onShowPreviousPositions?: (vesselUuid: string, vesselName: string) => void;
   onTrackVessel?: (vesselUuid: string, vesselName: string) => void;
 }
 
@@ -149,7 +148,6 @@ export default function MapComponent({
   loading,
   onMapReady,
   layerVisibility: externalLayerVisibility,
-  onShowPreviousPositions,
   onTrackVessel,
 }: MapProps) {
   const mapRef = useRef<MapRef>(null);
@@ -1349,7 +1347,6 @@ export default function MapComponent({
             setSelectedVesselId(null);
           }
         }}
-        onShowPreviousPositions={onShowPreviousPositions}
         onTrackVessel={onTrackVessel}
       />
 

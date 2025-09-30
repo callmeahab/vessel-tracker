@@ -324,153 +324,6 @@ export default function Home() {
     setViolationsPanelOpen(false);
   }, []);
 
-  const handleShowPreviousPositions = useCallback(
-    async (vesselUuid: string, vesselName: string) => {
-      try {
-        setTrackingVessel({ uuid: vesselUuid, name: vesselName });
-        // Close violations panel when tracking vessel
-        setViolationsPanelOpen(false);
-
-        // Fetch previous positions from the last 7 days
-        const response = await fetch(
-          getApiUrl(API_ENDPOINTS.vesselPreviousPositions(vesselUuid, 50))
-        );
-
-        if (response.ok) {
-          const positionData = await response.json();
-
-          if (
-            positionData.previous_positions &&
-            positionData.previous_positions.length > 0 &&
-            mapRef.current
-          ) {
-            // Create coordinates for previous positions (markers only, no lines)
-            const coordinates = positionData.previous_positions.map((entry: {longitude: number, latitude: number}) => [
-              entry.longitude,
-              entry.latitude,
-            ]);
-
-            // Remove existing previous positions if any
-            if (mapRef.current.getSource("previous-positions")) {
-              mapRef.current.removeLayer("previous-positions-markers");
-              mapRef.current.removeSource("previous-positions");
-            }
-
-            // Add previous positions source (markers only, no line connections)
-            mapRef.current.addSource("previous-positions", {
-              type: "geojson",
-              data: {
-                type: "FeatureCollection",
-                features: positionData.previous_positions.map((entry: {longitude: number, latitude: number, timestamp: string, speed?: number}, index: number) => ({
-                  type: "Feature",
-                  properties: {
-                    timestamp: entry.timestamp,
-                    speed: entry.speed,
-                    is_start: index === positionData.previous_positions.length - 1,
-                    is_end: index === 0,
-                  },
-                  geometry: {
-                    type: "Point",
-                    coordinates: [entry.longitude, entry.latitude],
-                  },
-                })),
-              },
-            });
-
-            mapRef.current.addLayer({
-              id: "previous-positions-markers",
-              type: "circle",
-              source: "previous-positions",
-              paint: {
-                "circle-radius": [
-                  "case",
-                  ["get", "is_start"],
-                  8,
-                  ["get", "is_end"],
-                  6,
-                  4,
-                ],
-                "circle-color": [
-                  "case",
-                  ["get", "is_start"],
-                  "#10b981", // Green for oldest position
-                  ["get", "is_end"],
-                  "#ef4444", // Red for most recent position
-                  "#3b82f6", // Blue for intermediate positions
-                ],
-                "circle-opacity": 0.8,
-                "circle-stroke-width": 2,
-                "circle-stroke-color": "#ffffff",
-              },
-            });
-
-            // Fit map to show all previous positions
-            const bounds = new mapboxgl.LngLatBounds();
-            coordinates.forEach((coord: [number, number]) =>
-              bounds.extend(coord)
-            );
-            mapRef.current.fitBounds(bounds, { padding: 50 });
-
-            // Add popup for previous position markers
-            mapRef.current.on("click", "previous-positions-markers", (e) => {
-              const features = e.features;
-              if (features && features.length > 0) {
-                const feature = features[0];
-                const props = feature.properties;
-
-                MapPopupControl.createVesselPositionPopup(
-                  mapRef.current!,
-                  e.lngLat.toArray() as [number, number],
-                  {
-                    timestamp: props?.timestamp,
-                    speed: props?.speed,
-                    is_start: props?.is_start,
-                    is_end: props?.is_end,
-                    vesselName: vesselName,
-                  }
-                );
-              }
-            });
-
-            // Keep the tracking vessel state for the header
-            // Don't clear it here since we want to show the clear button
-            addNotification({
-              type: "success",
-              title: "Previous Positions Loaded",
-              message: `${vesselName} - ${positionData.count} positions displayed`,
-              duration: 4000,
-            });
-          } else {
-            addNotification({
-              type: "info",
-              title: "No Previous Positions",
-              message: `No previous positions found for ${vesselName}`,
-              duration: 3000,
-            });
-            setTrackingVessel(null);
-          }
-        } else {
-          addNotification({
-            type: "error",
-            title: "Failed to Load Previous Positions",
-            message: `Could not fetch previous positions for ${vesselName}`,
-            duration: 4000,
-          });
-          setTrackingVessel(null);
-        }
-      } catch (error) {
-        console.error("Error fetching previous positions:", error);
-        addNotification({
-          type: "error",
-          title: "Error Loading Previous Positions",
-          message: `Error loading tracking history for ${vesselName}`,
-          duration: 4000,
-        });
-        setTrackingVessel(null);
-      }
-    },
-    [addNotification]
-  );
 
   const handleTrackVessel = useCallback(
     async (vesselUuid: string, vesselName: string) => {
@@ -481,7 +334,7 @@ export default function Home() {
 
         // Fetch previous positions from local database
         const response = await fetch(
-          getApiUrl(API_ENDPOINTS.vesselPreviousPositions(vesselUuid, 100))
+          getApiUrl(API_ENDPOINTS.vesselTrack(vesselUuid, 100))
         );
 
         if (response.ok) {
@@ -658,11 +511,6 @@ export default function Home() {
 
   const clearVesselTrack = useCallback(() => {
     if (mapRef.current) {
-      // Clear previous positions
-      if (mapRef.current.getSource("previous-positions")) {
-        mapRef.current.removeLayer("previous-positions-markers");
-        mapRef.current.removeSource("previous-positions");
-      }
       // Clear vessel track
       if (mapRef.current.getSource("vessel-track")) {
         mapRef.current.removeLayer("vessel-track-markers");
@@ -812,7 +660,6 @@ export default function Home() {
         onMapReady={handleMapReady}
         layerVisibility={layerVisibility}
         onLayerToggle={handleLayerToggle}
-        onShowPreviousPositions={handleShowPreviousPositions}
         onTrackVessel={handleTrackVessel}
       />
 
@@ -827,7 +674,6 @@ export default function Home() {
         isOpen={violationsPanelOpen}
         onClose={closeViolationsPanel}
         onVesselClick={handleVesselClick}
-        onShowPreviousPositions={handleShowPreviousPositions}
         onTrackVessel={handleTrackVessel}
       />
 

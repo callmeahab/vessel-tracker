@@ -683,23 +683,23 @@ export class MapPopupControl {
       case "oldest":
         return {
           subtitle: "EARLIEST POSITION",
-          gradient: "rgba(16, 185, 129, 0.8), rgba(5, 150, 105, 0.7), rgba(4, 120, 87, 0.6)",
+          gradient: "rgba(139, 92, 246, 0.8), rgba(124, 58, 237, 0.7), rgba(109, 40, 217, 0.6)",
           typeLabel: "Start of Track",
-          typeColor: "#10b981"
+          typeColor: "#8b5cf6"
         };
       case "latest":
         return {
           subtitle: "MOST RECENT POSITION",
-          gradient: "rgba(239, 68, 68, 0.8), rgba(220, 38, 38, 0.7), rgba(185, 28, 28, 0.6)",
+          gradient: "rgba(245, 158, 11, 0.8), rgba(234, 88, 12, 0.7), rgba(194, 65, 12, 0.6)",
           typeLabel: "End of Track",
-          typeColor: "#ef4444"
+          typeColor: "#f59e0b"
         };
       default:
         return {
           subtitle: "HISTORICAL POSITION",
-          gradient: "rgba(59, 130, 246, 0.8), rgba(37, 99, 235, 0.7), rgba(29, 78, 216, 0.6)",
+          gradient: "rgba(6, 182, 212, 0.8), rgba(8, 145, 178, 0.7), rgba(14, 116, 144, 0.6)",
           typeLabel: "Track Point",
-          typeColor: "#3b82f6"
+          typeColor: "#06b6d4"
         };
     }
   }
@@ -746,22 +746,22 @@ export class MapPopupControl {
         return {
           title: "Track Start",
           description: "This is the earliest recorded position for this vessel's track. Use this to see where the vessel's journey began.",
-          background: "linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.1))",
-          borderColor: "#10b981",
+          background: "linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(124, 58, 237, 0.1))",
+          borderColor: "#8b5cf6",
         };
       case "latest":
         return {
           title: "Latest Position",
           description: "This is the most recent position before the current location. The vessel's track ends near this point.",
-          background: "linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(220, 38, 38, 0.1))",
-          borderColor: "#ef4444",
+          background: "linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(234, 88, 12, 0.1))",
+          borderColor: "#f59e0b",
         };
       default:
         return {
           title: "Historical Track Point",
           description: "This represents a previous position along the vessel's route. Click different markers to see the vessel's movement pattern.",
-          background: "linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(37, 99, 235, 0.1))",
-          borderColor: "#3b82f6",
+          background: "linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(8, 145, 178, 0.1))",
+          borderColor: "#06b6d4",
         };
     }
   }

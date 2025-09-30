@@ -10,7 +10,6 @@ interface BufferViolationsPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onVesselClick?: (vessel: VesselData) => void;
-  onShowPreviousPositions?: (vesselUuid: string, vesselName: string) => void;
   onTrackVessel?: (vesselUuid: string, vesselName: string) => void;
 }
 
@@ -19,7 +18,6 @@ export default function BufferViolationsPanel({
   isOpen,
   onClose,
   onVesselClick,
-  onShowPreviousPositions,
   onTrackVessel,
 }: BufferViolationsPanelProps) {
   // Memoize filtered vessel data to prevent expensive recalculations
@@ -47,12 +45,6 @@ export default function BufferViolationsPanel({
     };
   }, [vessels]);
 
-  const handleShowPreviousPositions = useCallback(
-    (uuid: string, name: string) => {
-      onShowPreviousPositions?.(uuid, name);
-    },
-    [onShowPreviousPositions]
-  );
 
   const handleTrackVessel = useCallback(
     (uuid: string, name: string) => {
