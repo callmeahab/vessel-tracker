@@ -37,5 +37,9 @@ app.*.symbols
 # Obfuscation related
 app.*.map.json
 
+# Claude Code
+.claude/
+
+# Build artifacts
 backend/vessel-tracker
 backend/vessel-tracker-linux

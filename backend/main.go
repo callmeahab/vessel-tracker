@@ -27,12 +27,16 @@ func main() {
 	}
 
 	apiKey := os.Getenv("MARINETRAFFIC_API_KEY")
-	if apiKey == "" {
-		log.Fatal("MARINETRAFFIC_API_KEY environment variable is required")
-	}
 
 	// Initialize services
-	vesselService := services.NewVesselService(apiKey)
+	var vesselService *services.VesselService
+	if apiKey != "" {
+		vesselService = services.NewVesselService(apiKey)
+		log.Println("MarineTraffic API key configured - live data fetching enabled")
+	} else {
+		log.Println("No MARINETRAFFIC_API_KEY configured - running in historical data mode")
+	}
+
 	geoService, err := services.NewGeoService("./data/national-park.geojson", "./data/buffered.geojson")
 	if err != nil {
 		log.Fatalf("Failed to initialize geo service: %v", err)
@@ -48,12 +52,16 @@ func main() {
 		log.Println("Hardcoded whitelist initialized successfully")
 	}
 
-	scheduler := services.NewSchedulerService(vesselService, geoService, vesselRepo)
-
-	// Start scheduler
-	err = scheduler.Start()
-	if err != nil {
-		log.Fatalf("Failed to start scheduler: %v", err)
+	// Only start scheduler if API key is configured
+	var scheduler *services.SchedulerService
+	if vesselService != nil {
+		scheduler = services.NewSchedulerService(vesselService, geoService, vesselRepo)
+		err = scheduler.Start()
+		if err != nil {
+			log.Fatalf("Failed to start scheduler: %v", err)
+		}
+	} else {
+		log.Println("Scheduler disabled - serving historical data only")
 	}
 
 	// Handle graceful shutdown
@@ -62,7 +70,9 @@ func main() {
 	go func() {
 		<-c
 		log.Println("Shutting down gracefully...")
-		scheduler.Stop()
+		if scheduler != nil {
+			scheduler.Stop()
+		}
 		os.Exit(0)
 	}()
 

@@ -26,6 +26,16 @@ func NewVesselHandler(vesselService *services.VesselService, geoService *service
 }
 
 func (h *VesselHandler) GetVessels(c *gin.Context) {
+	// Check if vesselService is available
+	if h.vesselService == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"vessels": []interface{}{},
+			"count":   0,
+			"message": "Running in historical data mode - vessel search not available",
+		})
+		return
+	}
+
 	// Get query parameters
 	params := make(map[string]string)
 
@@ -80,6 +90,21 @@ func (h *VesselHandler) GetVesselsInPark(c *gin.Context) {
 
 	// If no data in database, try to fetch from API as fallback
 	if len(positions) == 0 {
+		// Check if vesselService is available for API fallback
+		if h.vesselService == nil {
+			// No API configured, return demo data for demonstration
+			demoVessels := getDemoVessels(centerLat, centerLon)
+			c.JSON(http.StatusOK, gin.H{
+				"vessels_in_park": demoVessels,
+				"total_in_park":   len(demoVessels),
+				"park_center": gin.H{
+					"latitude":  centerLat,
+					"longitude": centerLon,
+				},
+				"mode": "demo",
+			})
+			return
+		}
 		vesselPositions, apiErr := h.vesselService.GetVesselsInRadius(centerLat, centerLon, 20)
 		if apiErr != nil {
 			// No data available anywhere, return demo data
@@ -540,3 +565,102 @@ func (h *VesselHandler) GetPreviousPositions(c *gin.Context) {
 	})
 }
 
+// getDemoVessels returns demo vessel data for demonstration purposes
+func getDemoVessels(centerLat, centerLon float64) []gin.H {
+	return []gin.H{
+		{
+			"vessel": gin.H{
+				"uuid":         "demo-cargo-001",
+				"name":         "MV Mediterranean Star",
+				"mmsi":         "247012300",
+				"imo":          "9434567",
+				"type":         "Cargo",
+				"type_specific": "General Cargo",
+				"country_iso":  "IT",
+			},
+			"latitude":              centerLat + 0.015,
+			"longitude":             centerLon - 0.012,
+			"is_in_park":            false,
+			"is_in_buffer_zone":     true,
+			"is_whitelisted":        false,
+			"timestamp":             time.Now().Format(time.RFC3339),
+		},
+		{
+			"vessel": gin.H{
+				"uuid":         "demo-fishing-001",
+				"name":         "Pescatore Sardo",
+				"mmsi":         "247098765",
+				"imo":          "",
+				"type":         "Fishing",
+				"type_specific": "Trawler",
+				"country_iso":  "IT",
+			},
+			"latitude":              centerLat - 0.008,
+			"longitude":             centerLon + 0.018,
+			"is_in_park":            true,
+			"is_in_buffer_zone":     false,
+			"is_whitelisted":        true,
+			"whitelist_info": gin.H{
+				"reason":   "Licensed local fishing vessel",
+				"added_by": "Park Authority",
+			},
+			"timestamp":             time.Now().Format(time.RFC3339),
+		},
+		{
+			"vessel": gin.H{
+				"uuid":         "demo-yacht-001",
+				"name":         "Blue Horizon",
+				"mmsi":         "227654321",
+				"imo":          "",
+				"type":         "Pleasure Craft",
+				"type_specific": "Sailing Yacht",
+				"country_iso":  "FR",
+			},
+			"latitude":              centerLat + 0.005,
+			"longitude":             centerLon + 0.008,
+			"is_in_park":            true,
+			"is_in_buffer_zone":     false,
+			"is_whitelisted":        false,
+			"is_anchored_on_posidonia": true,
+			"timestamp":             time.Now().Format(time.RFC3339),
+		},
+		{
+			"vessel": gin.H{
+				"uuid":         "demo-ferry-001",
+				"name":         "Maddalena Express",
+				"mmsi":         "247111222",
+				"imo":          "9567890",
+				"type":         "Passenger",
+				"type_specific": "Ferry",
+				"country_iso":  "IT",
+			},
+			"latitude":              centerLat - 0.012,
+			"longitude":             centerLon - 0.005,
+			"is_in_park":            false,
+			"is_in_buffer_zone":     true,
+			"is_whitelisted":        true,
+			"whitelist_info": gin.H{
+				"reason":   "Authorized ferry service",
+				"added_by": "Park Authority",
+			},
+			"timestamp":             time.Now().Format(time.RFC3339),
+		},
+		{
+			"vessel": gin.H{
+				"uuid":         "demo-tanker-001",
+				"name":         "Petrol Carrier VII",
+				"mmsi":         "636012345",
+				"imo":          "9345678",
+				"type":         "Tanker",
+				"type_specific": "Oil Tanker",
+				"country_iso":  "MT",
+			},
+			"latitude":              centerLat + 0.022,
+			"longitude":             centerLon - 0.025,
+			"is_in_park":            false,
+			"is_in_buffer_zone":     true,
+			"is_whitelisted":        false,
+			"timestamp":             time.Now().Format(time.RFC3339),
+		},
+	}
+}
