@@ -1,7 +1,7 @@
 '''
 Imports
 '''
-from shapely import Polygon, LineString, intersection_all#, MultiPolygon
+from shapely import Polygon, LineString, intersection_all, MultiPolygon
 import math as m
 import os
 import csv
@@ -19,8 +19,10 @@ ANCHOR_COORDS_MAX:int = int(8)
 ANCHORED_SPEED_THRESH:float = float(0.01)
 ANCHOR_ANGULAR_TOLERANCE:float = float(3.0)
 ANCHOR_POLYGON_LEN:float = float(0.001) # ~100m Maybe update w/ weather/depth
-MAX_NUM_VESSELS:int = int(0xFFFF)
+MAX_NUM_VESSELS:int = int(0xFFF)
 
+
+POSIDONIA_BOUNDS = MultiPolygon() #Set this to posidonia boundaries
 
 '''
 Helper functions
@@ -183,6 +185,7 @@ class vessel:
     anchor_area: Polygon
     dragging_area: Polygon
     anchor_dragging: bool # TODO: Implement
+    on_posidonia: bool
 
     def __init__(self, uuid:str = "N/A") -> None:
         self.id = uuid
@@ -192,7 +195,14 @@ class vessel:
         self.angle = 0.0
         self.anchor_area = Polygon()
         self.anchor_dragging = False
+        self.on_posidonia = False
         return
+
+    def on_posidonia_helper(self, posidonia_boundary: MultiPolygon)->bool:
+        if posidonia_boundary.is_empty:
+            return False
+        
+        return self.anchor_area.intersection(posidonia_boundary).area/self.anchor_area.area > 0.9
 
     def update(self, coordinate: tuple[float,float], speed: float, angle: float) -> None:
         self.coordinate = coordinate
@@ -206,10 +216,20 @@ class vessel:
             else:
                 self.anchor_area = (self.anchor_area).intersection(anchor_polygon(self.coordinate, self.angle))
                 self.anchor_dragging = anchor_dragging(self.anchor_coordinates.buff[0:self.anchor_coordinates.idx])
+                self.on_posidonia = self.on_posidonia_helper(POSIDONIA_BOUNDS)
+
             
             if self.anchor_area.is_empty:
                 self.anchor_dragging = False
                 self.anchor_coordinates.clear()
+                self.on_posidonia = False
+        
+        else: #No longer possible for anchored
+            self.anchor_area = Polygon()
+            self.anchor_coordinates.clear()
+            self.anchor_dragging = False
+            self.on_posidonia = False
+
                 
         return
 
@@ -278,6 +298,22 @@ def demo():
 
         for idx,_ in enumerate(coords):
             ship.update(coords[idx], speeds[idx], angles[idx])
+
+
+    while(True):
+        idx_str:str = input("Enter idx #:")
+        if(idx_str == "exit" or idx_str == "EXIT"):
+            break
+
+        idx:int = int(idx_str)
+        print("Boat #",idx_str,":")
+        print("UUID: ",ships.v_list[idx].id)
+        print("Current Coordinate: ",ships.v_list[idx].coordinate)
+        print("Current Speed: ",ships.v_list[idx].speed)
+        print("Anchor area: ",ships.v_list[idx].anchor_area)
+        print("\n\n")
+
+    return
 
 
 
